@@ -1,44 +1,47 @@
 const express = require('express');
 const cors = require('cors');
+const morgan = require('morgan');
 const { createProxyMiddleware } = require('http-proxy-middleware');
+const dotenv = require('dotenv');
+
+dotenv.config();
 
 const app = express();
 
+// Middleware
 app.use(cors());
-app.use(express.json());
+app.use(morgan('dev')); // Logging
 
-// Basic proxy routing to underlying microservices
-app.use(
-  '/auth',
-  createProxyMiddleware({
-    target: 'http://localhost:5001',
-    changeOrigin: true,
-    pathRewrite: { '^/auth': '' },
-  })
-);
+// Proxy mappings
+const proxies = {
+  '/api/auth': process.env.AUTH_SERVICE_URL || 'http://localhost:5001',
+  '/api/labours': process.env.LABOUR_SERVICE_URL || 'http://localhost:5002',
+  '/api/attendances': process.env.ATTENDANCE_SERVICE_URL || 'http://localhost:5003',
+  '/api/deployments': process.env.DEPLOYMENT_SERVICE_URL || 'http://localhost:5004',
+  '/api/reporting': process.env.REPORTING_SERVICE_URL || 'http://localhost:5005',
+};
 
-app.use(
-  '/labour',
-  createProxyMiddleware({
-    target: 'http://localhost:5002',
-    changeOrigin: true,
-    pathRewrite: { '^/labour': '' },
-  })
-);
+// Setup proxies
+Object.entries(proxies).forEach(([path, target]) => {
+  app.use(
+    path,
+    createProxyMiddleware({
+      target,
+      changeOrigin: true,
+      pathRewrite: {
+        [`^${path}`]: path, // Keep the path prefix when forwarding
+      },
+      onError: (err, req, res) => {
+        console.error(`Proxy error for ${path}:`, err.message);
+        res.status(503).json({ success: false, message: 'Service unavailable' });
+      },
+    })
+  );
+});
 
-app.use(
-  '/attendance',
-  createProxyMiddleware({
-    target: 'http://localhost:5003',
-    changeOrigin: true,
-    pathRewrite: { '^/attendance': '' },
-  })
-);
-
-// Single test route (required)
-app.get('/', (req, res) => {
-  res.send('Service is running');
+// Health Check
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'Gateway is running' });
 });
 
 module.exports = app;
-

@@ -1,15 +1,23 @@
 const express = require('express');
 const cors = require('cors');
+const reportingRoutes = require('./routes/reportingRoutes');
+const errorHandler = require('../../../common/middleware/errorMiddleware');
 
 const app = express();
 
+// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Single test route (required)
-app.get('/', (req, res) => {
-  res.send('Service is running');
+// Routes
+app.use('/api/reporting', reportingRoutes);
+
+// Health Check
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'Reporting Service is running' });
 });
 
-module.exports = app;
+// Error Handler
+app.use(errorHandler);
 
+module.exports = app;
