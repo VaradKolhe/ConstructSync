@@ -1,19 +1,9 @@
 @baseUrl = http://localhost:5000/api
 
-### Register a new ADMIN
-# @name register
-POST {{baseUrl}}/auth/register
-Content-Type: application/json
-
-{
-  "name": "Admin User",
-  "email": "admin@test.com",
-  "password": "password123",
-  "role": "ADMIN"
-}
-
-### Login to get Token
-# @name login
+# ====================================================================================================
+# STEP 1: ADMIN LOGIN
+# ====================================================================================================
+# @name adminLogin
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
@@ -22,8 +12,90 @@ Content-Type: application/json
   "password": "password123"
 }
 
-### Get Profile (Protected)
-# @name getProfile
-@authToken = {{login.response.body.data.token}}
+###
+# ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# STEP 2: REGISTER NEW USER (ADMIN ONLY)
+# ====================================================================================================
+# @name register
+@adminToken = {{adminLogin.response.body.data.token}}
+
+POST {{baseUrl}}/auth/register
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Varad Kolhe",
+  "email": "varadkolhe36@gmail.com",
+  "role": "SUPERVISOR"
+}
+
+###
+# ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# STEP 3: USER FIRST LOGIN
+# ====================================================================================================
+# @name userLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "pm@test.com",
+  "password": "REPLACE_WITH_TEMP_PASSWORD_FROM_EMAIL"
+}
+
+###
+# ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# STEP 4: REQUEST OTP
+# ====================================================================================================
+# @name requestOTP
+@userToken = {{userLogin.response.body.data.token}}
+POST {{baseUrl}}/auth/request-otp
+Authorization: Bearer {{userToken}}
+
+###
+# ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# STEP 5: VERIFY EMAIL & OTP
+# ====================================================================================================
+# @name verifyEmail
+POST {{baseUrl}}/auth/verify-email
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "otp": "REPLACE_WITH_OTP_FROM_EMAIL",
+  "newEmail": "pm-verified@test.com"
+}
+
+###
+# ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# STEP 6: COMPLETE ONBOARDING
+# ====================================================================================================
+# @name completeOnboarding
+POST {{baseUrl}}/auth/complete-onboarding
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "newPassword": "permanentPassword123"
+}
+
+###
+# ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# STEP 7: FINAL PROFILE CHECK
+# ====================================================================================================
 GET {{baseUrl}}/auth/profile
-Authorization: Bearer {{authToken}}
+Authorization: Bearer {{userToken}}
+
+###
+# ----------------------------------------------------------------------------------------------------

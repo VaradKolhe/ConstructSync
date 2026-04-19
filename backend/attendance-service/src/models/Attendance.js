@@ -45,9 +45,7 @@ const attendanceSchema = new mongoose.Schema(
   }
 );
 
-// Compound index to prevent duplicate attendance for a worker on the same day
-// Note: Unique indexes on time-series collections have specific constraints in MongoDB,
-// but for our logic, we'll enforce this in the controller or via a standard index if supported.
-attendanceSchema.index({ labourId: 1, date: 1 }, { unique: true });
+// Compound index to help with queries (Note: unique: true is not supported on non-meta fields in TS collections)
+attendanceSchema.index({ labourId: 1, date: 1 });
 
 module.exports = mongoose.model('Attendance', attendanceSchema);

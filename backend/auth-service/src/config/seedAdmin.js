@@ -1,22 +1,16 @@
-const mongoose = require('mongoose');
-const bcrypt = require('bcryptjs');
-const dotenv = require('dotenv');
 const User = require('../models/User');
 
-dotenv.config();
-
-const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/constructsync_db';
-
+/**
+ * Seeds the default admin user if it doesn't exist.
+ * This function should be called after the database connection is established.
+ */
 const seedAdmin = async () => {
   try {
-    await mongoose.connect(MONGO_URI);
-    console.log('Connected to MongoDB for seeding...');
-
     // Check if admin already exists
     const adminExists = await User.findOne({ email: 'admin@test.com' });
     if (adminExists) {
       console.log('Admin already exists.');
-      process.exit(0);
+      return;
     }
 
     await User.create({
@@ -24,16 +18,15 @@ const seedAdmin = async () => {
       email: 'admin@test.com',
       password: 'admin123', // This will be hashed by the pre-save hook
       role: 'ADMIN',
-      isFirstLogin: true,
-      isEmailVerified: false
+      isActive: true,
+      isFirstLogin: false, // Admin doesn't need to change password on first login
+      isEmailVerified: true
     });
 
     console.log('Default Admin Created: admin@test.com / admin123');
-    process.exit(0);
   } catch (error) {
     console.error('Error seeding admin:', error);
-    process.exit(1);
   }
 };
 
-seedAdmin();
+module.exports = seedAdmin;
