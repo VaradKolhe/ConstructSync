@@ -24,13 +24,10 @@ const proxies = {
 // Setup proxies
 Object.entries(proxies).forEach(([path, target]) => {
   app.use(
-    path,
     createProxyMiddleware({
       target,
       changeOrigin: true,
-      pathRewrite: {
-        [`^${path}`]: path, // Keep the path prefix when forwarding
-      },
+      pathFilter: path,
       onError: (err, req, res) => {
         console.error(`Proxy error for ${path}:`, err.message);
         res.status(503).json({ success: false, message: 'Service unavailable' });

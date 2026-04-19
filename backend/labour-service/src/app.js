@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const labourRoutes = require('./routes/labourRoutes');
-const errorHandler = require('../../../common/middleware/errorMiddleware');
+const errorHandler = require('../../common/middleware/errorMiddleware');
 
 const app = express();
 
