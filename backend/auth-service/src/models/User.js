@@ -31,6 +31,20 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    isFirstLogin: {
+      type: Boolean,
+      default: true,
+    },
+    isEmailVerified: {
+      type: Boolean,
+      default: false,
+    },
+    otp: {
+      type: String,
+    },
+    otpExpires: {
+      type: Date,
+    },
     lastLogin: {
       type: Date,
     },

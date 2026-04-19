@@ -1,11 +1,23 @@
 const express = require('express');
-const { register, login, getProfile } = require('../controllers/authController');
-const { protect } = require('../../../common/middleware/authMiddleware');
+const {
+  register,
+  login,
+  getProfile,
+  requestEmailOTP,
+  verifyEmail,
+  completeOnboarding
+} = require('../controllers/authController');
+const { protect, authorize } = require('../../../common/middleware/authMiddleware');
 
 const router = express.Router();
 
-router.post('/register', register);
+router.post('/register', protect, authorize('ADMIN'), register);
 router.post('/login', login);
 router.get('/profile', protect, getProfile);
+
+// Onboarding Flow
+router.post('/request-otp', protect, requestEmailOTP);
+router.post('/verify-email', protect, verifyEmail);
+router.post('/complete-onboarding', protect, completeOnboarding);
 
 module.exports = router;
