@@ -1,0 +1,56 @@
+@baseUrl = http://localhost:5000/api
+
+### Login to get Token
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@test.com",
+  "password": "password123"
+}
+
+### Get Token Variable
+@authToken = {{login.response.body.data.token}}
+
+### List All Sites
+GET {{baseUrl}}/deployments/sites
+Authorization: Bearer {{authToken}}
+
+### Create New Site (Admin required)
+# @name createSite
+POST {{baseUrl}}/deployments/sites
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "name": "Downtown Construction Phase 1",
+  "location": "Sector 42, Metro City",
+  "supervisorId": "INSERT_SUPERVISOR_OBJECT_ID_HERE"
+}
+
+### Assign Labour to Site (Supervisor/Admin required)
+# @name assignLabour
+POST {{baseUrl}}/deployments/assign
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "labourId": "INSERT_LABOUR_OBJECT_ID_HERE",
+  "siteId": "INSERT_SITE_OBJECT_ID_HERE",
+  "startDate": "2026-04-19"
+}
+
+### Mark Assignment Complete
+@assignmentId = {{assignLabour.response.body.data._id}}
+PUT {{baseUrl}}/deployments/complete/{{assignmentId}}
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "endDate": "2026-05-19"
+}
+
+### View All Deployments for a Site
+GET {{baseUrl}}/deployments/site/INSERT_SITE_OBJECT_ID_HERE
+Authorization: Bearer {{authToken}}

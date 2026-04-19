@@ -1,0 +1,29 @@
+@baseUrl = http://localhost:5000/api
+
+### Register a new ADMIN
+# @name register
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Admin User",
+  "email": "admin@test.com",
+  "password": "password123",
+  "role": "ADMIN"
+}
+
+### Login to get Token
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@test.com",
+  "password": "password123"
+}
+
+### Get Profile (Protected)
+# @name getProfile
+@authToken = {{login.response.body.data.token}}
+GET {{baseUrl}}/auth/profile
+Authorization: Bearer {{authToken}}
