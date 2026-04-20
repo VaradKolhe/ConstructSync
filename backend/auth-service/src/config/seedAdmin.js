@@ -16,11 +16,11 @@ const seedAdmin = async () => {
     await User.create({
       name: 'System Admin',
       email: 'admin@test.com',
-      password: 'admin123', // This will be hashed by the pre-save hook
+      password: 'admin123',
       role: 'ADMIN',
       isActive: true,
-      isFirstLogin: false, // Admin doesn't need to change password on first login
-      isEmailVerified: true
+      isFirstLogin: true, // Force password change
+      isEmailVerified: false // Force email verification
     });
 
     console.log('Default Admin Created: admin@test.com / admin123');

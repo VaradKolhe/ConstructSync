@@ -1,23 +1,33 @@
 @baseUrl = http://localhost:5000/api
 
-### Login to get Token
+# ====================================================================================================
+# STEP 1: AUTHENTICATION
+# ====================================================================================================
 # @name login
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "email": "admin@test.com",
-  "password": "password123"
+  "email": "varadkolhe36@gmail.com",
+  "password": "Varad@1234"
 }
 
-### Get Token Variable
+###
 @authToken = {{login.response.body.data.token}}
 
-### List All Sites
+# ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# STEP 2: DEPLOYMENT OPERATIONS
+# ====================================================================================================
+
+# List All Sites
 GET {{baseUrl}}/deployments/sites
 Authorization: Bearer {{authToken}}
 
-### Create New Site (Admin required)
+###
+
+# Create New Site (Admin required)
 # @name createSite
 POST {{baseUrl}}/deployments/sites
 Authorization: Bearer {{authToken}}
@@ -29,7 +39,9 @@ Content-Type: application/json
   "supervisorId": "INSERT_SUPERVISOR_OBJECT_ID_HERE"
 }
 
-### Assign Labour to Site (Supervisor/Admin required)
+###
+
+# Assign Labour to Site (Supervisor/Admin required)
 # @name assignLabour
 POST {{baseUrl}}/deployments/assign
 Authorization: Bearer {{authToken}}
@@ -41,7 +53,9 @@ Content-Type: application/json
   "startDate": "2026-04-19"
 }
 
-### Mark Assignment Complete
+###
+
+# Mark Assignment Complete
 @assignmentId = {{assignLabour.response.body.data._id}}
 PUT {{baseUrl}}/deployments/complete/{{assignmentId}}
 Authorization: Bearer {{authToken}}
@@ -51,6 +65,11 @@ Content-Type: application/json
   "endDate": "2026-05-19"
 }
 
-### View All Deployments for a Site
+###
+
+# View All Deployments for a Site
 GET {{baseUrl}}/deployments/site/INSERT_SITE_OBJECT_ID_HERE
 Authorization: Bearer {{authToken}}
+
+###
+# ----------------------------------------------------------------------------------------------------

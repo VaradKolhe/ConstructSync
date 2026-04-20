@@ -11,7 +11,7 @@ const sendEmail = async (options) => {
   });
 
   const mailOptions = {
-    from: `"ConstructSync Support" <${process.env.EMAIL_USER}>`,
+    from: `${process.env.EMAIL_USERNAME} <${process.env.EMAIL_USER}>`,
     to: options.email,
     subject: options.subject,
     text: options.message,

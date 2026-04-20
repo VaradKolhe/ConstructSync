@@ -97,36 +97,51 @@ exports.register = async (req, res, next) => {
 
 exports.requestEmailOTP = async (req, res, next) => {
   try {
+    const { newEmail } = req.body || {};
     const user = await User.findById(req.user.id);
     if (!user) return ApiResponse.error(res, "User not found", 404);
 
-    const otp = generateOTP();
-    user.otp = otp;
-    user.otpExpires = Date.now() + 10 * 60 * 1000;
-    await user.save();
+    let targetEmail = user.email;
+
+    // Special logic for Admin initialization:
+    // If the admin is using the default placeholder and provides a new email, send OTP there.
+    if (user.role === 'ADMIN' && user.email === 'admin@test.com' && newEmail) {
+      targetEmail = newEmail;
+      // We don't update user.email yet, we wait for verification.
+      // But we need to keep track of where we sent the OTP if it's different from current.
+      user.otp = generateOTP();
+      user.otpExpires = Date.now() + 10 * 60 * 1000;
+      await user.save();
+    } else {
+      const otp = generateOTP();
+      user.otp = otp;
+      user.otpExpires = Date.now() + 10 * 60 * 1000;
+      await user.save();
+    }
 
     try {
       await sendEmail({
-        email: user.email,
-        subject: "🔑 Verification Code: [${otp}] - ConstructSync",
+        email: targetEmail,
+        subject: `🔑 Verification Code: [${user.otp}] - ConstructSync`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #ddd;">
             ${emailHeader}
             <div style="padding: 30px; text-align: center; color: #333;">
               <h2 style="margin-bottom: 10px;">Security Verification</h2>
               <p>Please use the following code to verify your identity and finalize your account setup.</p>
+              ${targetEmail !== user.email ? `<p><strong>Verification for new email: ${targetEmail}</strong></p>` : ''}
               <div style="margin: 30px 0;">
                 <span style="background-color: #333; color: #FF8C00; padding: 15px 30px; font-size: 32px; font-weight: bold; border-radius: 4px; letter-spacing: 5px; border: 2px solid #FF8C00;">
-                  ${otp}
+                  ${user.otp}
                 </span>
               </div>
-              <p style="font-size: 13px; color: #666;">This verification code is valid for <strong>10 minutes</strong>. If you did not request this, please contact your Site Admin immediately.</p>
+              <p style="font-size: 13px; color: #666;">This verification code is valid for <strong>10 minutes</strong>. If you did not request this, please contact site support.</p>
             </div>
             ${emailFooter}
           </div>
         `,
       });
-      return ApiResponse.success(res, "OTP sent successfully to your email.");
+      return ApiResponse.success(res, `OTP sent successfully to ${targetEmail}`);
     } catch (err) {
       console.error("Email Error:", err);
       return ApiResponse.error(res, "Failed to send OTP email.", 500);
@@ -166,21 +181,31 @@ exports.verifyEmail = async (req, res, next) => {
   try {
     const { otp, newEmail } = req.body;
     const user = await User.findById(req.user.id);
+
     if (!user.otp || user.otp !== otp || user.otpExpires < Date.now()) {
       return ApiResponse.error(res, "Invalid or expired OTP", 400);
     }
-    if (newEmail && (!user.isEmailVerified || user.isFirstLogin)) {
+
+    // Only Admin can change their email during verification if they want to.
+    // Others must use the email provided by the admin.
+    if (newEmail && user.role === 'ADMIN') {
       const emailTaken = await User.findOne({ email: newEmail });
       if (emailTaken)
         return ApiResponse.error(res, "Email already in use", 400);
       user.email = newEmail;
+    } else if (newEmail && user.role !== 'ADMIN') {
+      return ApiResponse.error(res, "Only administrators can change their registered email.", 403);
     }
+
     user.isEmailVerified = true;
     user.otp = undefined;
     user.otpExpires = undefined;
-    await user.save();
+    
+    const updatedUser = await user.save();
+    console.log(`Admin email updated to: ${updatedUser.email}`);
+
     return ApiResponse.success(res, "Email verified successfully", {
-      email: user.email,
+      email: updatedUser.email,
     });
   } catch (error) {
     next(error);
@@ -190,12 +215,26 @@ exports.verifyEmail = async (req, res, next) => {
 exports.completeOnboarding = async (req, res, next) => {
   try {
     const { newPassword } = req.body;
+
+    // Password Validation
+    if (!newPassword || newPassword.length < 6) {
+      return ApiResponse.error(res, "Password must be at least 6 characters long", 400);
+    }
+
+    // Stronger validation (optional but recommended based on prompt "use of validations")
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      return ApiResponse.error(res, "Password must be at least 8 characters, include uppercase, lowercase, number and special character.", 400);
+    }
+
     const user = await User.findById(req.user.id);
     if (!user.isEmailVerified)
       return ApiResponse.error(res, "Please verify your email first", 400);
+    
     user.password = newPassword;
     user.isFirstLogin = false;
     await user.save();
+
     return ApiResponse.success(res, "Onboarding complete. Password updated.");
   } catch (error) {
     next(error);

@@ -1,23 +1,33 @@
 @baseUrl = http://localhost:5000/api
 
-### Login to get Token
+# ====================================================================================================
+# STEP 1: AUTHENTICATION
+# ====================================================================================================
 # @name login
 POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
   "email": "admin@test.com",
-  "password": "password123"
+  "password": "admin123"
 }
 
-### Get Token Variable
+###
 @authToken = {{login.response.body.data.token}}
 
-### List All Labours
+# ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# STEP 2: LABOUR MANAGEMENT
+# ====================================================================================================
+
+# List All Labours
 GET {{baseUrl}}/labours
 Authorization: Bearer {{authToken}}
 
-### Create New Labour (HR/ADMIN required)
+###
+
+# Create New Labour (HR/ADMIN required)
 # @name createLabour
 POST {{baseUrl}}/labours
 Authorization: Bearer {{authToken}}
@@ -31,12 +41,16 @@ Content-Type: application/json
   "address": "123 Construction Site Road"
 }
 
-### Get Specific Labour by ID
+###
+
+# Get Specific Labour by ID
 @labourId = {{createLabour.response.body.data._id}}
 GET {{baseUrl}}/labours/{{labourId}}
 Authorization: Bearer {{authToken}}
 
-### Update Labour Profile
+###
+
+# Update Labour Profile
 PUT {{baseUrl}}/labours/{{labourId}}
 Authorization: Bearer {{authToken}}
 Content-Type: application/json
@@ -46,6 +60,11 @@ Content-Type: application/json
   "skills": ["Carpentry", "Masonry", "Plumbing"]
 }
 
-### Delete Labour
+###
+
+# Delete Labour
 DELETE {{baseUrl}}/labours/{{labourId}}
 Authorization: Bearer {{authToken}}
+
+###
+# ----------------------------------------------------------------------------------------------------

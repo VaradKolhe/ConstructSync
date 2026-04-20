@@ -8,8 +8,10 @@ POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "email": "admin@test.com",
-  "password": "password123"
+  // "email": "admin@test.com",
+  // "password": "password123"
+  "email": "202301040150@mitaoe.ac.in",
+  "password": "Varad@1234"
 }
 
 ###
@@ -27,8 +29,8 @@ Content-Type: application/json
 
 {
   "name": "Varad Kolhe",
-  "email": "varadkolhe36@gmail.com",
-  "role": "SUPERVISOR"
+  "email": "varad4422@gmail.com",
+  "role": "HR"
 }
 
 ###
@@ -42,8 +44,8 @@ POST {{baseUrl}}/auth/login
 Content-Type: application/json
 
 {
-  "email": "pm@test.com",
-  "password": "REPLACE_WITH_TEMP_PASSWORD_FROM_EMAIL"
+  "email": "varad4422@gmail.com",
+  "password": "8bb74351"
 }
 
 ###
@@ -56,6 +58,7 @@ Content-Type: application/json
 @userToken = {{userLogin.response.body.data.token}}
 POST {{baseUrl}}/auth/request-otp
 Authorization: Bearer {{userToken}}
+Content-Type: application/json
 
 ###
 # ----------------------------------------------------------------------------------------------------
@@ -69,8 +72,7 @@ Authorization: Bearer {{userToken}}
 Content-Type: application/json
 
 {
-  "otp": "REPLACE_WITH_OTP_FROM_EMAIL",
-  "newEmail": "pm-verified@test.com"
+  "otp": "545691"
 }
 
 ###
@@ -80,22 +82,74 @@ Content-Type: application/json
 # STEP 6: COMPLETE ONBOARDING
 # ====================================================================================================
 # @name completeOnboarding
-POST {{baseUrl}}/auth/complete-onboarding
+POST {{baseUrl}}/auth/complete-onboarding 
 Authorization: Bearer {{userToken}}
 Content-Type: application/json
 
 {
-  "newPassword": "permanentPassword123"
+  "newPassword": "Abc@1234" 
+  // Validation: Min 8 chars, 1 Upper, 1 Lower, 1 Number, 1 Special Char
 }
 
 ###
-# ----------------------------------------------------------------------------------------------------
+#----------------------------------------------------------------------------------------------------
 
 # ====================================================================================================
 # STEP 7: FINAL PROFILE CHECK
 # ====================================================================================================
 GET {{baseUrl}}/auth/profile
 Authorization: Bearer {{userToken}}
+
+### ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# OPTIONAL: ADMIN INITIALIZATION FLOW (FIRST TIME SETUP)
+# ====================================================================================================
+# 1. Login with placeholder credentials
+# @name adminInitLogin
+
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@test.com",
+  "password": "admin123"
+}
+
+###
+
+# 2. Admin requests OTP to their REAL email
+@adminInitToken = {{adminInitLogin.response.body.data.token}}
+POST {{baseUrl}}/auth/request-otp
+Authorization: Bearer {{adminInitToken}}
+Content-Type: application/json
+
+{
+  "newEmail": "202301040150@mitaoe.ac.in"
+}
+
+###
+
+# 3. Admin verifies OTP and sets their REAL email
+POST {{baseUrl}}/auth/verify-email
+Authorization: Bearer {{adminInitToken}}
+Content-Type: application/json
+
+{
+  "otp": "282569", 
+  "newEmail": "202301040150@mitaoe.ac.in"
+}
+
+###
+
+# 4. Admin completes onboarding with a STRONG password
+POST {{baseUrl}}/auth/complete-onboarding
+Authorization: Bearer {{adminInitToken}}
+Content-Type: application/json
+
+{
+  "newPassword": "Varad@1234"
+}
 
 ###
 # ----------------------------------------------------------------------------------------------------
