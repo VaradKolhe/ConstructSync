@@ -20,7 +20,7 @@ beforeAll(async () => {
   
   process.env.JWT_SECRET = 'testsecret';
   adminToken = jwt.sign(
-    { id: adminId, role: 'ADMIN' },
+    { id: adminId, role: 'ADMIN', name: 'Admin User' },
     process.env.JWT_SECRET,
     { expiresIn: '1h' }
   );
@@ -31,71 +31,91 @@ afterAll(async () => {
   if (mongoServer) await mongoServer.stop();
 });
 
-describe('Labour Service Integration Tests', () => {
-  let labourId;
+describe('Labour Service Integration Tests (SRS Compliant)', () => {
+  let labourObjectId;
 
-  it('should create a new labourer', async () => {
+  it('Step 1: Create a new labourer and verify auto-ID (FR-1.2)', async () => {
     const res = await request(app)
       .post('/api/labours')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({
-        labourId: 'L001',
-        name: 'John Doe',
-        phone: '9876543210',
-        skills: ['Carpentry'],
-        address: '123 Test St'
+        name: 'Jane Doe',
+        dateOfBirth: '1995-05-20',
+        gender: 'FEMALE',
+        phone: '9988776655',
+        emergencyContact: '1122334455',
+        address: '456 Construction Rd',
+        skills: ['Plumbing'],
+        aadhaarNumber: '5555-4444-3333'
       });
 
     expect(res.statusCode).toBe(201);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.labourId).toBe('L001');
-    labourId = res.body.data._id;
+    expect(res.body.data.labourId).toMatch(/^LBR-\d{8}-\d{4}$/);
+    labourObjectId = res.body.data._id;
   });
 
-  it('should list all labourers', async () => {
+  it('Step 2: Detect duplicate Aadhaar (FR-1.5)', async () => {
+    const res = await request(app)
+      .post('/api/labours')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Another Jane',
+        dateOfBirth: '1995-05-20',
+        gender: 'FEMALE',
+        phone: '111',
+        emergencyContact: '222',
+        address: 'Addr',
+        skills: ['S1'],
+        aadhaarNumber: '5555-4444-3333' // Duplicate
+      });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toBe('Aadhaar/ID Number already exists');
+  });
+
+  it('Step 3: Update profile and verify audit log (FR-1.6)', async () => {
+    const res = await request(app)
+      .put(`/api/labours/${labourObjectId}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        skills: ['Plumbing', 'Electrical']
+      });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.editHistory.length).toBeGreaterThan(0);
+    expect(res.body.data.editHistory[0].editorName).toBe('Admin User');
+  });
+
+  it('Step 4: Soft delete and verify invisibility in lists (FR-1.7)', async () => {
+    // Verify it exists in list first
+    const listBefore = await request(app)
+      .get('/api/labours')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(listBefore.body.data.labours.some(l => l._id === labourObjectId)).toBe(true);
+
+    // Deactivate
+    const delRes = await request(app)
+      .delete(`/api/labours/${labourObjectId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(delRes.statusCode).toBe(200);
+
+    // Verify it's gone from list
+    const listAfter = await request(app)
+      .get('/api/labours')
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(listAfter.body.data.labours.some(l => l._id === labourObjectId)).toBe(false);
+
+    // Verify it's still in DB but inactive
+    const hiddenInDB = await Labour.findById(labourObjectId);
+    expect(hiddenInDB.isActive).toBe(false);
+  });
+
+  it('Step 5: Verify pagination default (FR-1.8)', async () => {
     const res = await request(app)
       .get('/api/labours')
       .set('Authorization', `Bearer ${adminToken}`);
 
     expect(res.statusCode).toBe(200);
-    expect(Array.isArray(res.body.data)).toBe(true);
-    expect(res.body.data.length).toBeGreaterThan(0);
-  });
-
-  it('should get a specific labourer by ID', async () => {
-    const res = await request(app)
-      .get(`/api/labours/${labourId}`)
-      .set('Authorization', `Bearer ${adminToken}`);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.data.name).toBe('John Doe');
-  });
-
-  it('should update a labourer profile', async () => {
-    const res = await request(app)
-      .put(`/api/labours/${labourId}`)
-      .set('Authorization', `Bearer ${adminToken}`)
-      .send({
-        name: 'John Updated',
-        skills: ['Carpentry', 'Masonry']
-      });
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.data.name).toBe('John Updated');
-    expect(res.body.data.skills).toContain('Masonry');
-  });
-
-  it('should delete a labourer', async () => {
-    const res = await request(app)
-      .delete(`/api/labours/${labourId}`)
-      .set('Authorization', `Bearer ${adminToken}`);
-
-    expect(res.statusCode).toBe(200);
-    expect(res.body.success).toBe(true);
-
-    const checkRes = await request(app)
-      .get(`/api/labours/${labourId}`)
-      .set('Authorization', `Bearer ${adminToken}`);
-    expect(checkRes.statusCode).toBe(404);
+    expect(res.body.data.pagination.limit).toBe(50);
   });
 });

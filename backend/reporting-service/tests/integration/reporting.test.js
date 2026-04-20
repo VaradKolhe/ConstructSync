@@ -110,4 +110,25 @@ describe('Reporting Service Integration Tests', () => {
 
     expect(res.statusCode).toBe(400);
   });
+
+  it('should return empty array for a site with no attendance records', async () => {
+    const randomSiteId = new mongoose.Types.ObjectId();
+    const res = await request(app)
+      .get('/api/reporting/attendance')
+      .query({ siteId: randomSiteId.toString() })
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data).toEqual([]);
+  });
+
+  it('should return 500 (handled by middleware) for invalid siteId format', async () => {
+    const res = await request(app)
+      .get('/api/reporting/attendance')
+      .query({ siteId: 'invalid-id' })
+      .set('Authorization', `Bearer ${adminToken}`);
+
+    expect(res.statusCode).toBe(500);
+    expect(res.body.success).toBe(false);
+  });
 });

@@ -97,4 +97,24 @@ describe('Attendance Service Integration Tests', () => {
     expect(Array.isArray(res.body.data)).toBe(true);
     expect(res.body.data.length).toBe(1);
   });
+
+  it('should return 400 when trying to check-out an already checked-out record', async () => {
+    const res = await request(app)
+      .put(`/api/attendances/check-out/${attendanceId}`)
+      .set('Authorization', `Bearer ${supervisorToken}`)
+      .send();
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.message).toBe('Already checked out');
+  });
+
+  it('should return 404 for a non-existent attendance ID on check-out', async () => {
+    const fakeId = new mongoose.Types.ObjectId();
+    const res = await request(app)
+      .put(`/api/attendances/check-out/${fakeId}`)
+      .set('Authorization', `Bearer ${supervisorToken}`)
+      .send();
+
+    expect(res.statusCode).toBe(404);
+  });
 });

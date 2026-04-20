@@ -1,6 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
+const cookieParser = require('cookie-parser');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const dotenv = require('dotenv');
 
@@ -9,8 +10,12 @@ dotenv.config();
 const app = express();
 
 // Middleware
-app.use(cors());
-app.use(morgan('dev')); // Logging
+app.use(cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
+  credentials: true // Allow cookies to be sent from frontend
+}));
+app.use(morgan('dev'));
+app.use(cookieParser());
 
 // Proxy mappings
 const proxies = {
@@ -28,12 +33,17 @@ Object.entries(proxies).forEach(([path, target]) => {
       target,
       changeOrigin: true,
       pathFilter: path,
-      onError: (err, req, res) => {
-        console.error(`Proxy error for ${path}:`, err.message);
-        res.status(503).json({ success: false, message: 'Service unavailable' });
+      on: {
+        proxyReq: (proxyReq, req, res) => {
+          // You can add custom headers or logs here if needed
+        },
+        error: (err, req, res) => {
+          console.error(`Proxy error for ${path}:`, err.message);
+          res.status(503).json({ success: false, message: 'Service unavailable' });
+        },
       },
     })
-  );
+  ); 
 });
 
 // Health Check

@@ -41,6 +41,20 @@ describe('User Model Unit Tests', () => {
     expect(isNotMatch).toBe(false);
   });
 
+  it('should correctly identify a locked account', async () => {
+    const user = new User({
+      name: 'Locked User',
+      email: 'locked@test.com',
+      password: 'password123',
+      role: 'HR',
+      lockUntil: Date.now() + 10000
+    });
+    expect(user.isLocked()).toBe(true);
+    
+    user.lockUntil = Date.now() - 10000;
+    expect(user.isLocked()).toBe(false);
+  });
+
   it('should fail if required fields are missing', async () => {
     const user = new User({});
     let err;

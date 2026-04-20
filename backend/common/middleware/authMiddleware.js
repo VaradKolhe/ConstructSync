@@ -4,7 +4,12 @@ const ApiResponse = require('../utils/apiResponse');
 const protect = (req, res, next) => {
   let token;
 
-  if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+  // FR-2.9: Read token from HTTP-only cookie first
+  if (req.cookies && req.cookies.accessToken) {
+    token = req.cookies.accessToken;
+  } 
+  // Fallback to Authorization header (for legacy/testing)
+  else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
     token = req.headers.authorization.split(' ')[1];
   }
 
@@ -17,6 +22,9 @@ const protect = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
+    if (error.name === 'TokenExpiredError') {
+      return ApiResponse.error(res, 'Token expired', 401);
+    }
     return ApiResponse.error(res, 'Not authorized, token failed', 401);
   }
 };

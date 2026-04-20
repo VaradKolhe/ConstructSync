@@ -19,22 +19,25 @@ afterAll(async () => {
   if (mongoServer) await mongoServer.stop();
 });
 
-describe('Labour Model Unit Tests', () => {
-  it('should create a labour record successfully', async () => {
+describe('Labour Model Unit Tests (SRS Compliant)', () => {
+  it('should create a labour record and auto-generate Labour ID', async () => {
     const labourData = {
-      labourId: 'L001',
       name: 'John Doe',
+      dateOfBirth: new Date('1990-01-01'),
+      gender: 'MALE',
       phone: '9876543210',
-      skills: ['Carpentry'],
-      address: '123 Test St'
+      emergencyContact: '1234567890',
+      address: '123 Construction St',
+      skills: ['Masonry'],
+      aadhaarNumber: '1234-5678-9012'
     };
     const labour = await Labour.create(labourData);
-    expect(labour.labourId).toBe(labourData.labourId);
-    expect(labour.status).toBe('AVAILABLE');
+    expect(labour.labourId).toMatch(/^LBR-\d{8}-\d{4}$/);
+    expect(labour.isActive).toBe(true);
   });
 
-  it('should fail if required fields are missing', async () => {
-    const labour = new Labour({});
+  it('should fail if SRS mandatory fields are missing', async () => {
+    const labour = new Labour({ name: 'Incomplete' });
     let err;
     try {
       await labour.save();
@@ -42,24 +45,35 @@ describe('Labour Model Unit Tests', () => {
       err = error;
     }
     expect(err).toBeDefined();
-    expect(err.errors.labourId).toBeDefined();
-    expect(err.errors.name).toBeDefined();
-    expect(err.errors.phone).toBeDefined();
+    expect(err.errors.dateOfBirth).toBeDefined();
+    expect(err.errors.gender).toBeDefined();
+    expect(err.errors.aadhaarNumber).toBeDefined();
   });
 
-  it('should enforce unique labourId', async () => {
+  it('should enforce unique Aadhaar number', async () => {
+    const commonAadhaar = '9999-8888-7777';
     await Labour.create({
-      labourId: 'UNIQUE001',
       name: 'User 1',
-      phone: '1111111111'
+      dateOfBirth: new Date('1990-01-01'),
+      gender: 'MALE',
+      phone: '1111111111',
+      emergencyContact: '000',
+      address: 'Addr',
+      skills: ['S1'],
+      aadhaarNumber: commonAadhaar
     });
     
     let err;
     try {
       await Labour.create({
-        labourId: 'UNIQUE001',
         name: 'User 2',
-        phone: '2222222222'
+        dateOfBirth: new Date('1992-01-01'),
+        gender: 'FEMALE',
+        phone: '2222222222',
+        emergencyContact: '000',
+        address: 'Addr',
+        skills: ['S2'],
+        aadhaarNumber: commonAadhaar
       });
     } catch (error) {
       err = error;

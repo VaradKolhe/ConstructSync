@@ -19,7 +19,7 @@ const userSchema = new mongoose.Schema(
     password: {
       type: String,
       required: [true, 'Password is required'],
-      minlength: [6, 'Password must be at least 6 characters'],
+      minlength: [8, 'Password must be at least 8 characters'],
       select: false,
     },
     role: {
@@ -39,28 +39,55 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
-    otp: {
+    // FR-2.6: Account Lockout
+    loginAttempts: {
+      type: Number,
+      required: true,
+      default: 0,
+    },
+    lockUntil: {
+      type: Date,
+    },
+    // FR-2.3: Refresh Token
+    refreshToken: {
       type: String,
+      select: false,
     },
-    otpExpires: {
-      type: Date,
-    },
-    lastLogin: {
-      type: Date,
-    },
+    // FR-2.7: Forgot Password
+    resetPasswordToken: String,
+    resetPasswordExpire: Date,
+    // Onboarding
+    otp: String,
+    otpExpires: Date,
+    lastLogin: Date,
+    // FR-2.8: Auth Audit Logs
+    authLogs: [
+      {
+        event: {
+          type: String,
+          enum: ['LOGIN_SUCCESS', 'LOGIN_FAILED', 'LOGOUT', 'PASSWORD_RESET', 'ACCOUNT_LOCKED'],
+        },
+        ipAddress: String,
+        timestamp: { type: Date, default: Date.now },
+      },
+    ],
   },
   { timestamps: true }
 );
 
-// Pre-save hook for password hashing
+// FR-2.2: bcrypt with minimum salt round of 12
 userSchema.pre('save', async function () {
   if (!this.isModified('password')) return;
-  this.password = await bcrypt.hash(this.password, 10);
+  this.password = await bcrypt.hash(this.password, 12);
 });
 
-// Instance method to compare password
 userSchema.methods.comparePassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
+};
+
+// Check if user is locked
+userSchema.methods.isLocked = function () {
+  return !!(this.lockUntil && this.lockUntil > Date.now());
 };
 
 module.exports = mongoose.model('User', userSchema);

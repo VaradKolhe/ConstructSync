@@ -4,14 +4,23 @@ const User = require("../models/User");
 const ApiResponse = require("../../../common/utils/apiResponse");
 const sendEmail = require("../utils/emailSender");
 
-const generateToken = (id, role, isFirstLogin = false) => {
-  return jwt.sign({ id, role, isFirstLogin }, process.env.JWT_SECRET, {
-    expiresIn: "30d",
+// FR-2.3: short-lived access token (15m) and long-lived refresh token (7d)
+const generateTokens = (id, role, isFirstLogin = false) => {
+  const accessToken = jwt.sign({ id, role, isFirstLogin }, process.env.JWT_SECRET, {
+    expiresIn: "15m",
   });
+  const refreshToken = jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: "7d",
+  });
+  return { accessToken, refreshToken };
 };
 
-const generateOTP = () => {
-  return Math.floor(100000 + Math.random() * 900000).toString();
+// FR-2.9: Cookie Options
+const cookieOptions = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'Lax',
+  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };
 
 // --- Construction Themed Email Wrappers ---
@@ -69,7 +78,6 @@ exports.register = async (req, res, next) => {
                 <li>Verify your professional email address.</li>
                 <li>Set your permanent security password.</li>
               </ol>
-              <p>Failure to complete onboarding may result in restricted access to site deployment and attendance logs.</p>
             </div>
             ${emailFooter}
           </div>
@@ -79,19 +87,97 @@ exports.register = async (req, res, next) => {
       console.error("Email registration error:", err);
     }
 
-    return ApiResponse.success(
-      res,
-      "User registered. Temporary password sent to email.",
-      {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
-      201,
-    );
+    return ApiResponse.success(res, "User registered. Temp password sent.", { _id: user._id, email: user.email }, 201);
   } catch (error) {
     next(error);
+  }
+};
+
+exports.login = async (req, res, next) => {
+  try {
+    const { email, password } = req.body;
+    const ipAddress = req.ip;
+
+    const user = await User.findOne({ email }).select("+password +refreshToken");
+    if (!user) return ApiResponse.error(res, "Invalid email or password", 401);
+
+    if (user.isLocked()) {
+      return ApiResponse.error(res, "Account is locked. Contact Admin.", 403);
+    }
+
+    const isMatch = await user.comparePassword(password);
+    if (!isMatch) {
+      user.loginAttempts += 1;
+      user.authLogs.push({ event: 'LOGIN_FAILED', ipAddress });
+      if (user.loginAttempts >= 5) {
+        user.lockUntil = Date.now() + 24 * 60 * 60 * 1000;
+        user.authLogs.push({ event: 'ACCOUNT_LOCKED', ipAddress });
+      }
+      await user.save();
+      return ApiResponse.error(res, "Invalid email or password", 401);
+    }
+
+    if (!user.isActive) return ApiResponse.error(res, "Account deactivated", 403);
+
+    user.loginAttempts = 0;
+    user.lockUntil = undefined;
+    user.lastLogin = Date.now();
+    user.authLogs.push({ event: 'LOGIN_SUCCESS', ipAddress });
+
+    const { accessToken, refreshToken } = generateTokens(user._id, user.role, user.isFirstLogin);
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    res.cookie('accessToken', accessToken, { ...cookieOptions, maxAge: 15 * 60 * 1000 });
+    res.cookie('refreshToken', refreshToken, cookieOptions);
+
+    return ApiResponse.success(res, "Login successful", {
+      _id: user._id,
+      name: user.name,
+      role: user.role,
+      isFirstLogin: user.isFirstLogin,
+      isEmailVerified: user.isEmailVerified
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.logout = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (user) {
+      user.refreshToken = undefined;
+      user.authLogs.push({ event: 'LOGOUT', ipAddress: req.ip });
+      await user.save();
+    }
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
+    return ApiResponse.success(res, "Logged out successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+exports.refresh = async (req, res, next) => {
+  try {
+    const token = req.cookies.refreshToken;
+    if (!token) return ApiResponse.error(res, "No refresh token", 401);
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findOne({ _id: decoded.id, refreshToken: token });
+    if (!user) return ApiResponse.error(res, "Invalid refresh token", 401);
+
+    const { accessToken, refreshToken } = generateTokens(user._id, user.role, user.isFirstLogin);
+    user.refreshToken = refreshToken;
+    await user.save();
+
+    res.cookie('accessToken', accessToken, { ...cookieOptions, maxAge: 15 * 60 * 1000 });
+    res.cookie('refreshToken', refreshToken, cookieOptions);
+
+    return ApiResponse.success(res, "Token refreshed");
+  } catch (error) {
+    return ApiResponse.error(res, "Session expired", 401);
   }
 };
 
@@ -102,76 +188,21 @@ exports.requestEmailOTP = async (req, res, next) => {
     if (!user) return ApiResponse.error(res, "User not found", 404);
 
     let targetEmail = user.email;
-
-    // Special logic for Admin initialization:
-    // If the admin is using the default placeholder and provides a new email, send OTP there.
     if (user.role === 'ADMIN' && user.email === 'admin@test.com' && newEmail) {
       targetEmail = newEmail;
-      // We don't update user.email yet, we wait for verification.
-      // But we need to keep track of where we sent the OTP if it's different from current.
-      user.otp = generateOTP();
-      user.otpExpires = Date.now() + 10 * 60 * 1000;
-      await user.save();
-    } else {
-      const otp = generateOTP();
-      user.otp = otp;
-      user.otpExpires = Date.now() + 10 * 60 * 1000;
-      await user.save();
     }
 
-    try {
-      await sendEmail({
-        email: targetEmail,
-        subject: `🔑 Verification Code: [${user.otp}] - ConstructSync`,
-        html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #ddd;">
-            ${emailHeader}
-            <div style="padding: 30px; text-align: center; color: #333;">
-              <h2 style="margin-bottom: 10px;">Security Verification</h2>
-              <p>Please use the following code to verify your identity and finalize your account setup.</p>
-              ${targetEmail !== user.email ? `<p><strong>Verification for new email: ${targetEmail}</strong></p>` : ''}
-              <div style="margin: 30px 0;">
-                <span style="background-color: #333; color: #FF8C00; padding: 15px 30px; font-size: 32px; font-weight: bold; border-radius: 4px; letter-spacing: 5px; border: 2px solid #FF8C00;">
-                  ${user.otp}
-                </span>
-              </div>
-              <p style="font-size: 13px; color: #666;">This verification code is valid for <strong>10 minutes</strong>. If you did not request this, please contact site support.</p>
-            </div>
-            ${emailFooter}
-          </div>
-        `,
-      });
-      return ApiResponse.success(res, `OTP sent successfully to ${targetEmail}`);
-    } catch (err) {
-      console.error("Email Error:", err);
-      return ApiResponse.error(res, "Failed to send OTP email.", 500);
-    }
-  } catch (error) {
-    next(error);
-  }
-};
-
-exports.login = async (req, res, next) => {
-  try {
-    const { email, password } = req.body;
-    const user = await User.findOne({ email }).select("+password");
-    if (!user || !(await user.comparePassword(password))) {
-      return ApiResponse.error(res, "Invalid email or password", 401);
-    }
-    if (!user.isActive)
-      return ApiResponse.error(res, "Account deactivated", 403);
-    const token = generateToken(user._id, user.role, user.isFirstLogin);
-    user.lastLogin = Date.now();
+    user.otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.otpExpires = Date.now() + 10 * 60 * 1000;
     await user.save();
-    return ApiResponse.success(res, "Login successful", {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      isFirstLogin: user.isFirstLogin,
-      isEmailVerified: user.isEmailVerified,
-      token,
+
+    await sendEmail({
+      email: targetEmail,
+      subject: `🔑 Verification Code: [${user.otp}]`,
+      html: `${emailHeader}<div style="padding:30px; text-align:center;"><h2>OTP: ${user.otp}</h2></div>${emailFooter}`
     });
+
+    return ApiResponse.success(res, `OTP sent to ${targetEmail}`);
   } catch (error) {
     next(error);
   }
@@ -181,32 +212,15 @@ exports.verifyEmail = async (req, res, next) => {
   try {
     const { otp, newEmail } = req.body;
     const user = await User.findById(req.user.id);
-
     if (!user.otp || user.otp !== otp || user.otpExpires < Date.now()) {
       return ApiResponse.error(res, "Invalid or expired OTP", 400);
     }
-
-    // Only Admin can change their email during verification if they want to.
-    // Others must use the email provided by the admin.
-    if (newEmail && user.role === 'ADMIN') {
-      const emailTaken = await User.findOne({ email: newEmail });
-      if (emailTaken)
-        return ApiResponse.error(res, "Email already in use", 400);
-      user.email = newEmail;
-    } else if (newEmail && user.role !== 'ADMIN') {
-      return ApiResponse.error(res, "Only administrators can change their registered email.", 403);
-    }
-
+    if (newEmail && user.role === 'ADMIN') user.email = newEmail;
     user.isEmailVerified = true;
     user.otp = undefined;
     user.otpExpires = undefined;
-    
-    const updatedUser = await user.save();
-    console.log(`Admin email updated to: ${updatedUser.email}`);
-
-    return ApiResponse.success(res, "Email verified successfully", {
-      email: updatedUser.email,
-    });
+    await user.save();
+    return ApiResponse.success(res, "Email verified successfully");
   } catch (error) {
     next(error);
   }
@@ -215,27 +229,16 @@ exports.verifyEmail = async (req, res, next) => {
 exports.completeOnboarding = async (req, res, next) => {
   try {
     const { newPassword } = req.body;
-
-    // Password Validation
-    if (!newPassword || newPassword.length < 6) {
-      return ApiResponse.error(res, "Password must be at least 6 characters long", 400);
-    }
-
-    // Stronger validation (optional but recommended based on prompt "use of validations")
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
     if (!passwordRegex.test(newPassword)) {
       return ApiResponse.error(res, "Password must be at least 8 characters, include uppercase, lowercase, number and special character.", 400);
     }
-
     const user = await User.findById(req.user.id);
-    if (!user.isEmailVerified)
-      return ApiResponse.error(res, "Please verify your email first", 400);
-    
+    if (!user.isEmailVerified) return ApiResponse.error(res, "Verify email first", 400);
     user.password = newPassword;
     user.isFirstLogin = false;
     await user.save();
-
-    return ApiResponse.success(res, "Onboarding complete. Password updated.");
+    return ApiResponse.success(res, "Onboarding complete.");
   } catch (error) {
     next(error);
   }
@@ -244,7 +247,6 @@ exports.completeOnboarding = async (req, res, next) => {
 exports.getProfile = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
-    if (!user) return ApiResponse.error(res, "User not found", 404);
     return ApiResponse.success(res, "Profile fetched", user);
   } catch (error) {
     next(error);

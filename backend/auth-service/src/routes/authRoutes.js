@@ -2,6 +2,8 @@ const express = require('express');
 const {
   register,
   login,
+  logout,
+  refresh,
   getProfile,
   requestEmailOTP,
   verifyEmail,
@@ -13,6 +15,8 @@ const router = express.Router();
 
 router.post('/register', protect, authorize('ADMIN'), register);
 router.post('/login', login);
+router.post('/logout', protect, logout);
+router.post('/refresh', refresh);
 router.get('/profile', protect, getProfile);
 
 // Onboarding Flow
