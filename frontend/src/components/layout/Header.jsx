@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { HardHat, LayoutDashboard, Users, Clock, Map, BarChart3, ShieldCheck } from 'lucide-react';
-import UserProfileDropdown from './UserProfileDropdown';
+import UserProfileDropdown from '../navigation/UserProfileDropdown';
 
 const Header = () => {
   const { user } = useAuth();
