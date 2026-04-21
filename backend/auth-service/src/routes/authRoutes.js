@@ -7,7 +7,9 @@ const {
   getProfile,
   requestEmailOTP,
   verifyEmail,
-  completeOnboarding
+  completeOnboarding,
+  getAllUsers,
+  updateUser
 } = require('../controllers/authController');
 const { protect, authorize } = require('../../../common/middleware/authMiddleware');
 
@@ -18,6 +20,10 @@ router.post('/login', login);
 router.post('/logout', protect, logout);
 router.post('/refresh', refresh);
 router.get('/profile', protect, getProfile);
+
+// Admin User Management
+router.get('/users', protect, authorize('ADMIN'), getAllUsers);
+router.put('/users/:id', protect, authorize('ADMIN'), updateUser);
 
 // Onboarding Flow
 router.post('/request-otp', protect, requestEmailOTP);

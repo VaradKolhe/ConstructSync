@@ -123,4 +123,62 @@ describe('Deployment Service Integration Tests', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.data.length).toBe(1);
   });
+
+  describe('Advanced Deployment Features', () => {
+    it('should redeploy labour to a new site and close the old one', async () => {
+      const newSiteId = new mongoose.Types.ObjectId();
+      const res = await request(app)
+        .post('/api/deployments/redeploy')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          labourId,
+          newSiteId,
+          reason: 'Site A project finished'
+        });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.data.redeployReason).toBe('Site A project finished');
+      expect(res.body.data.siteId).toBe(newSiteId.toString());
+
+      // Verify old deployment is completed
+      const oldDeployments = await Deployment.find({ labourId, status: 'COMPLETED' });
+      expect(oldDeployments.length).toBeGreaterThan(0);
+    });
+
+    it('should create a labour group', async () => {
+      const res = await request(app)
+        .post('/api/deployments/groups')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          name: 'Foundation Team A',
+          members: [new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId()]
+        });
+
+      expect(res.statusCode).toBe(201);
+      expect(res.body.data.name).toBe('Foundation Team A');
+    });
+
+    it('should fetch contract expiry alerts', async () => {
+      // Create a deployment expiring in 3 days
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + 3);
+
+      await Deployment.create({
+        labourId: new mongoose.Types.ObjectId(),
+        siteId: new mongoose.Types.ObjectId(),
+        assignedBy: adminId,
+        status: 'ACTIVE',
+        contractEndDate: expiryDate,
+        startDate: new Date()
+      });
+
+      const res = await request(app)
+        .get('/api/deployments/alerts')
+        .query({ threshold: 7 })
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.data.length).toBeGreaterThanOrEqual(1);
+    });
+  });
 });

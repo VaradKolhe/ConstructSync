@@ -10,6 +10,13 @@ const deploymentSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: true,
     },
+    assignedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: true,
+    },
+    role: {
+      type: String,
+    },
     startDate: {
       type: Date,
       required: true,
@@ -17,6 +24,12 @@ const deploymentSchema = new mongoose.Schema(
     },
     endDate: {
       type: Date,
+    },
+    contractEndDate: {
+      type: Date,
+    },
+    redeployReason: {
+      type: String,
     },
     status: {
       type: String,

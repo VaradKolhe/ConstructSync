@@ -1,5 +1,7 @@
+const mongoose = require('mongoose');
 const Labour = require('../models/Labour');
 const ApiResponse = require('../../../common/utils/apiResponse');
+const { logAudit } = require('../../../common/utils/auditLogger');
 
 /**
  * Register a new labourer (FR-1.1)
@@ -22,6 +24,14 @@ exports.createLabour = async (req, res, next) => {
       name, dateOfBirth, gender, phone, 
       emergencyContact, address, skills, aadhaarNumber,
       profilePhoto, bankDetails, employmentHistory 
+    });
+
+    await logAudit(mongoose, {
+      userId: req.user.id,
+      action: 'LABOUR_CREATED',
+      module: 'LABOUR',
+      details: { labourId: labour.labourId, name: labour.name },
+      ipAddress: req.ip
     });
 
     return ApiResponse.success(res, 'Labour registered successfully', labour, 201);
@@ -110,6 +120,14 @@ exports.updateLabour = async (req, res, next) => {
     
     const updatedLabour = await labour.save();
     
+    await logAudit(mongoose, {
+      userId: req.user.id,
+      action: 'LABOUR_UPDATED',
+      module: 'LABOUR',
+      details: { labourId: updatedLabour.labourId, changes: req.body },
+      ipAddress: req.ip
+    });
+
     return ApiResponse.success(res, 'Labour updated successfully', updatedLabour);
   } catch (error) {
     next(error);
@@ -127,6 +145,14 @@ exports.deleteLabour = async (req, res, next) => {
     // FR-1.7: Support soft deletion
     labour.isActive = false;
     await labour.save();
+
+    await logAudit(mongoose, {
+      userId: req.user.id,
+      action: 'LABOUR_DEACTIVATED',
+      module: 'LABOUR',
+      details: { labourId: labour.labourId, name: labour.name },
+      ipAddress: req.ip
+    });
 
     return ApiResponse.success(res, 'Labour deactivated successfully');
   } catch (error) {

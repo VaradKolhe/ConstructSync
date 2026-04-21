@@ -24,6 +24,7 @@ describe('Deployment Model Unit Tests', () => {
     const deploymentData = {
       labourId: new mongoose.Types.ObjectId(),
       siteId: new mongoose.Types.ObjectId(),
+      assignedBy: new mongoose.Types.ObjectId(),
       startDate: new Date()
     };
     const deployment = await Deployment.create(deploymentData);
@@ -41,5 +42,6 @@ describe('Deployment Model Unit Tests', () => {
     expect(err).toBeDefined();
     expect(err.errors.labourId).toBeDefined();
     expect(err.errors.siteId).toBeDefined();
+    expect(err.errors.assignedBy).toBeDefined();
   });
 });

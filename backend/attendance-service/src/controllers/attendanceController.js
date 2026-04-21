@@ -1,5 +1,8 @@
+const mongoose = require('mongoose');
 const Attendance = require('../models/Attendance');
+const AttendanceAudit = require('../models/AttendanceAudit');
 const ApiResponse = require('../../../common/utils/apiResponse');
+const { logAudit } = require('../../../common/utils/auditLogger');
 
 /**
  * Mark Attendance (Check-in)
@@ -7,7 +10,7 @@ const ApiResponse = require('../../../common/utils/apiResponse');
  */
 exports.checkIn = async (req, res, next) => {
   try {
-    const { labourId, siteId, date } = req.body;
+    const { labourId, siteId, date, status } = req.body;
     const supervisorId = req.user.id;
 
     // Use current date if not provided (Format: YYYY-MM-DD for consistency)
@@ -26,6 +29,15 @@ exports.checkIn = async (req, res, next) => {
       supervisorId,
       date: attendanceDate,
       checkInTime: new Date(),
+      status: status || 'PRESENT',
+    });
+
+    await logAudit(mongoose, {
+      userId: req.user.id,
+      action: 'ATTENDANCE_CHECK_IN',
+      module: 'ATTENDANCE',
+      details: { labourId, siteId, date: attendanceDate },
+      ipAddress: req.ip
     });
 
     return ApiResponse.success(res, 'Check-in successful', attendance, 201);
@@ -49,13 +61,110 @@ exports.checkOut = async (req, res, next) => {
 
     const checkOutTime = new Date();
     const diffMs = checkOutTime - attendance.checkInTime;
-    const totalHours = (diffMs / (1000 * 60 * 60)).toFixed(2);
+    const totalHours = parseFloat((diffMs / (1000 * 60 * 60)).toFixed(2));
 
     attendance.checkOutTime = checkOutTime;
-    attendance.totalHours = parseFloat(totalHours);
+    attendance.totalHours = totalHours;
+
+    // FR-3.7 Anomaly Flagging
+    if (totalHours > 12 || totalHours < 0) {
+      attendance.isAnomaly = true;
+      attendance.anomalyReason = 'System flagged: Hours out of standard range (0-12 hours)';
+    }
+
     await attendance.save();
 
+    await logAudit(mongoose, {
+      userId: req.user.id,
+      action: 'ATTENDANCE_CHECK_OUT',
+      module: 'ATTENDANCE',
+      details: { attendanceId: attendance._id, totalHours },
+      ipAddress: req.ip
+    });
+
     return ApiResponse.success(res, 'Check-out successful', attendance);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Edit Attendance (Manual override)
+ * @route PUT /api/attendances/:id
+ */
+exports.editAttendance = async (req, res, next) => {
+  try {
+    const { status, checkInTime, checkOutTime, date } = req.body;
+    const attendanceId = req.params.id;
+    const userId = req.user.id;
+    const userRole = req.user.role;
+
+    const attendance = await Attendance.findById(attendanceId);
+    if (!attendance) return ApiResponse.error(res, 'Attendance record not found', 404);
+
+    // FR-3.5 Permissions: Supervisor same-day only, Admin anytime
+    if (userRole === 'SUPERVISOR') {
+      const recordDate = new Date(attendance.date);
+      const today = new Date();
+      recordDate.setUTCHours(0, 0, 0, 0);
+      today.setUTCHours(0, 0, 0, 0);
+
+      if (recordDate.getTime() !== today.getTime()) {
+        return ApiResponse.error(res, 'Supervisors can only edit attendance for the current day. Cross-day edits require Admin approval.', 403);
+      }
+    }
+
+    const previousData = attendance.toObject();
+    const updates = {};
+
+    if (status) attendance.status = status;
+    if (checkInTime) attendance.checkInTime = new Date(checkInTime);
+    if (checkOutTime) attendance.checkOutTime = new Date(checkOutTime);
+    if (date) {
+      const newDate = new Date(date);
+      newDate.setUTCHours(0, 0, 0, 0);
+      attendance.date = newDate;
+    }
+
+    // Recalculate hours if times changed
+    if (checkInTime || checkOutTime) {
+      if (attendance.checkInTime && attendance.checkOutTime) {
+        const diffMs = attendance.checkOutTime - attendance.checkInTime;
+        const totalHours = parseFloat((diffMs / (1000 * 60 * 60)).toFixed(2));
+        attendance.totalHours = totalHours;
+
+        if (totalHours > 12 || totalHours < 0) {
+          attendance.isAnomaly = true;
+          attendance.anomalyReason = 'System flagged: Manual edit resulted in hours out of standard range';
+        } else {
+          attendance.isAnomaly = false;
+          attendance.anomalyReason = '';
+        }
+      }
+    }
+
+    await attendance.save();
+
+    // Log the audit record (FR-3.8)
+    await AttendanceAudit.create({
+      attendanceId,
+      modifiedBy: userId,
+      action: 'EDIT',
+      changes: {
+        previous: previousData,
+        updated: attendance.toObject(),
+      },
+    });
+
+    await logAudit(mongoose, {
+      userId: req.user.id,
+      action: 'ATTENDANCE_EDITED',
+      module: 'ATTENDANCE',
+      details: { attendanceId: attendance._id, changes: req.body },
+      ipAddress: req.ip
+    });
+
+    return ApiResponse.success(res, 'Attendance updated successfully', attendance);
   } catch (error) {
     next(error);
   }

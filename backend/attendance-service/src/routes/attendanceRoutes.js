@@ -2,6 +2,7 @@ const express = require('express');
 const {
   checkIn,
   checkOut,
+  editAttendance,
   getSiteAttendance,
   getLabourHistory,
 } = require('../controllers/attendanceController');
@@ -12,6 +13,7 @@ const router = express.Router();
 // Attendance routes
 router.post('/check-in', protect, authorize('SUPERVISOR', 'ADMIN'), checkIn);
 router.put('/check-out/:id', protect, authorize('SUPERVISOR', 'ADMIN'), checkOut);
+router.put('/:id', protect, authorize('SUPERVISOR', 'ADMIN'), editAttendance);
 router.get('/site/:siteId', protect, getSiteAttendance);
 router.get('/labour/:labourId', protect, getLabourHistory);
 

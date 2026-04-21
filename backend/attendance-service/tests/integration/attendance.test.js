@@ -35,6 +35,7 @@ afterAll(async () => {
 
 describe('Attendance Service Integration Tests', () => {
   let attendanceId;
+  const todayStr = new Date().toISOString().split('T')[0];
 
   it('should mark check-in for a labourer', async () => {
     const res = await request(app)
@@ -43,7 +44,7 @@ describe('Attendance Service Integration Tests', () => {
       .send({
         labourId,
         siteId,
-        date: '2026-04-19'
+        date: todayStr
       });
 
     expect(res.statusCode).toBe(201);
@@ -59,7 +60,7 @@ describe('Attendance Service Integration Tests', () => {
       .send({
         labourId,
         siteId,
-        date: '2026-04-19'
+        date: todayStr
       });
 
     expect(res.statusCode).toBe(400);
@@ -80,7 +81,7 @@ describe('Attendance Service Integration Tests', () => {
   it('should fetch site attendance', async () => {
     const res = await request(app)
       .get(`/api/attendances/site/${siteId}`)
-      .query({ date: '2026-04-19' })
+      .query({ date: todayStr })
       .set('Authorization', `Bearer ${supervisorToken}`);
 
     expect(res.statusCode).toBe(200);
@@ -116,5 +117,113 @@ describe('Attendance Service Integration Tests', () => {
       .send();
 
     expect(res.statusCode).toBe(404);
+  });
+
+  describe('Anomaly Flagging & Edits', () => {
+    let anomalyAttendanceId;
+
+    it('should flag anomaly if check-out results in > 12 hours', async () => {
+      // Create a record with check-in 13 hours ago
+      const pastTime = new Date();
+      pastTime.setHours(pastTime.getHours() - 13);
+
+      const res = await request(app)
+        .post('/api/attendances/check-in')
+        .set('Authorization', `Bearer ${supervisorToken}`)
+        .send({
+          labourId: new mongoose.Types.ObjectId(),
+          siteId,
+          date: new Date().toISOString().split('T')[0]
+        });
+
+      anomalyAttendanceId = res.body.data._id;
+
+      // Manually update checkInTime to 13 hours ago for testing
+      await mongoose.model('Attendance').findByIdAndUpdate(anomalyAttendanceId, { checkInTime: pastTime });
+
+      const checkOutRes = await request(app)
+        .put(`/api/attendances/check-out/${anomalyAttendanceId}`)
+        .set('Authorization', `Bearer ${supervisorToken}`)
+        .send();
+
+      expect(checkOutRes.statusCode).toBe(200);
+      expect(checkOutRes.body.data.isAnomaly).toBe(true);
+      expect(checkOutRes.body.data.totalHours).toBeGreaterThan(12);
+    });
+
+    it('should allow supervisor to edit attendance on the same day', async () => {
+      const res = await request(app)
+        .put(`/api/attendances/${attendanceId}`)
+        .set('Authorization', `Bearer ${supervisorToken}`)
+        .send({
+          status: 'HALF-DAY'
+        });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.data.status).toBe('HALF-DAY');
+
+      // Verify Audit Log
+      const audit = await mongoose.model('AttendanceAudit').findOne({ attendanceId });
+      expect(audit).toBeDefined();
+      expect(audit.action).toBe('EDIT');
+    });
+
+    it('should NOT allow supervisor to edit attendance for a past day', async () => {
+      // Create a past record
+      const pastDate = new Date();
+      pastDate.setDate(pastDate.getDate() - 2);
+      pastDate.setUTCHours(0, 0, 0, 0);
+
+      const pastRecord = await mongoose.model('Attendance').create({
+        labourId: new mongoose.Types.ObjectId(),
+        siteId,
+        supervisorId,
+        date: pastDate,
+        checkInTime: new Date(pastDate),
+        status: 'PRESENT'
+      });
+
+      const res = await request(app)
+        .put(`/api/attendances/${pastRecord._id}`)
+        .set('Authorization', `Bearer ${supervisorToken}`)
+        .send({
+          status: 'ABSENT'
+        });
+
+      expect(res.statusCode).toBe(403);
+      expect(res.body.message).toContain('Supervisors can only edit attendance for the current day');
+    });
+
+    it('should allow admin to edit attendance for a past day', async () => {
+      const adminToken = jwt.sign(
+        { id: new mongoose.Types.ObjectId(), role: 'ADMIN' },
+        process.env.JWT_SECRET,
+        { expiresIn: '1h' }
+      );
+
+      // Create another past record
+      const pastDate = new Date();
+      pastDate.setDate(pastDate.getDate() - 3);
+      pastDate.setUTCHours(0, 0, 0, 0);
+
+      const pastRecord = await mongoose.model('Attendance').create({
+        labourId: new mongoose.Types.ObjectId(),
+        siteId,
+        supervisorId,
+        date: pastDate,
+        checkInTime: new Date(pastDate),
+        status: 'PRESENT'
+      });
+
+      const res = await request(app)
+        .put(`/api/attendances/${pastRecord._id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          status: 'LEAVE'
+        });
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.data.status).toBe('LEAVE');
+    });
   });
 });

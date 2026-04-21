@@ -1,8 +1,10 @@
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
+const mongoose = require("mongoose");
 const User = require("../models/User");
 const ApiResponse = require("../../../common/utils/apiResponse");
 const sendEmail = require("../utils/emailSender");
+const { logAudit } = require("../../../common/utils/auditLogger");
 
 // FR-2.3: short-lived access token (15m) and long-lived refresh token (7d)
 const generateTokens = (id, role, isFirstLogin = false) => {
@@ -87,6 +89,14 @@ exports.register = async (req, res, next) => {
       console.error("Email registration error:", err);
     }
 
+    await logAudit(mongoose, {
+      userId: user._id,
+      action: 'USER_REGISTERED',
+      module: 'AUTH',
+      details: { email: user.email, role: user.role },
+      ipAddress: req.ip
+    });
+
     return ApiResponse.success(res, "User registered. Temp password sent.", { _id: user._id, email: user.email }, 201);
   } catch (error) {
     next(error);
@@ -128,6 +138,14 @@ exports.login = async (req, res, next) => {
     user.refreshToken = refreshToken;
     await user.save();
 
+    await logAudit(mongoose, {
+      userId: user._id,
+      action: 'LOGIN_SUCCESS',
+      module: 'AUTH',
+      details: { email: user.email },
+      ipAddress
+    });
+
     res.cookie('accessToken', accessToken, { ...cookieOptions, maxAge: 15 * 60 * 1000 });
     res.cookie('refreshToken', refreshToken, cookieOptions);
 
@@ -150,6 +168,13 @@ exports.logout = async (req, res, next) => {
       user.refreshToken = undefined;
       user.authLogs.push({ event: 'LOGOUT', ipAddress: req.ip });
       await user.save();
+      await logAudit(mongoose, {
+        userId: user._id,
+        action: 'LOGOUT',
+        module: 'AUTH',
+        details: { email: user.email },
+        ipAddress: req.ip
+      });
     }
     res.clearCookie('accessToken');
     res.clearCookie('refreshToken');
@@ -248,6 +273,48 @@ exports.getProfile = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
     return ApiResponse.success(res, "Profile fetched", user);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Admin: Get all users
+ */
+exports.getAllUsers = async (req, res, next) => {
+  try {
+    const users = await User.find().select('-password -refreshToken');
+    return ApiResponse.success(res, "Users fetched successfully", users);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Admin: Update user
+ */
+exports.updateUser = async (req, res, next) => {
+  try {
+    const { name, email, role, isActive } = req.body;
+    const user = await User.findById(req.params.id);
+    if (!user) return ApiResponse.error(res, "User not found", 404);
+
+    if (name) user.name = name;
+    if (email) user.email = email;
+    if (role) user.role = role;
+    if (isActive !== undefined) user.isActive = isActive;
+
+    await user.save();
+
+    await logAudit(mongoose, {
+      userId: req.user.id,
+      action: 'USER_UPDATED',
+      module: 'AUTH',
+      details: { targetUserId: user._id, changes: req.body },
+      ipAddress: req.ip
+    });
+
+    return ApiResponse.success(res, "User updated successfully", user);
   } catch (error) {
     next(error);
   }
