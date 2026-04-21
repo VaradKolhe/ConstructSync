@@ -1,5 +1,4 @@
 const express = require('express');
-const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const labourRoutes = require('./routes/labourRoutes');
 const referenceDataRoutes = require('./routes/referenceDataRoutes');
@@ -8,7 +7,6 @@ const errorHandler = require('../../common/middleware/errorMiddleware');
 const app = express();
 
 // Middleware
-app.use(cors());
 app.use(cookieParser());
 app.use(express.json());
 

@@ -8,6 +8,12 @@ services:
       - "27017:27017"
     volumes:
       - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks:
       - constructsync-network
 
@@ -16,6 +22,7 @@ services:
       context: .
       dockerfile: auth-service/Dockerfile
     container_name: auth-service
+    restart: always
     ports:
       - "5001:5001"
     environment:
@@ -24,7 +31,8 @@ services:
       - JWT_SECRET=constructsync_secret_key_2026
       - NODE_ENV=development
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
     networks:
       - constructsync-network
 
@@ -33,13 +41,16 @@ services:
       context: .
       dockerfile: labour-service/Dockerfile
     container_name: labour-service
+    restart: always
     ports:
       - "5002:5002"
     environment:
       - PORT=5002
       - MONGO_URI=mongodb://mongodb:27017/constructsync_db
+      - JWT_SECRET=constructsync_secret_key_2026
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
     networks:
       - constructsync-network
 
@@ -48,13 +59,16 @@ services:
       context: .
       dockerfile: attendance-service/Dockerfile
     container_name: attendance-service
+    restart: always
     ports:
       - "5003:5003"
     environment:
       - PORT=5003
       - MONGO_URI=mongodb://mongodb:27017/constructsync_db
+      - JWT_SECRET=constructsync_secret_key_2026
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
     networks:
       - constructsync-network
 
@@ -63,13 +77,16 @@ services:
       context: .
       dockerfile: deployment-service/Dockerfile
     container_name: deployment-service
+    restart: always
     ports:
       - "5004:5004"
     environment:
       - PORT=5004
       - MONGO_URI=mongodb://mongodb:27017/constructsync_db
+      - JWT_SECRET=constructsync_secret_key_2026
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
     networks:
       - constructsync-network
 
@@ -78,13 +95,16 @@ services:
       context: .
       dockerfile: reporting-service/Dockerfile
     container_name: reporting-service
+    restart: always
     ports:
       - "5005:5005"
     environment:
       - PORT=5005
       - MONGO_URI=mongodb://mongodb:27017/constructsync_db
+      - JWT_SECRET=constructsync_secret_key_2026
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
     networks:
       - constructsync-network
 
@@ -93,6 +113,7 @@ services:
       context: .
       dockerfile: gateway/Dockerfile
     container_name: gateway
+    restart: always
     ports:
       - "5000:5000"
     environment:
@@ -104,11 +125,16 @@ services:
       - REPORTING_SERVICE_URL=http://reporting-service:5005
       - FRONTEND_URL=http://localhost:5173
     depends_on:
-      - auth-service
-      - labour-service
-      - attendance-service
-      - deployment-service
-      - reporting-service
+      auth-service:
+        condition: service_started
+      labour-service:
+        condition: service_started
+      attendance-service:
+        condition: service_started
+      deployment-service:
+        condition: service_started
+      reporting-service:
+        condition: service_started
     networks:
       - constructsync-network
 

@@ -45,10 +45,20 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const requestOTP = async (newEmail) => {
+    try {
+      const response = await api.post('/auth/request-otp', { newEmail });
+      return response.data.message;
+    } catch (err) {
+      const message = err.response?.data?.message || 'Failed to send OTP';
+      throw new Error(message);
+    }
+  };
+
   const verifyOTP = async (otp, newEmail) => {
     try {
       await api.post('/auth/verify-email', { otp, newEmail });
-      setUser(prev => ({ ...prev, isEmailVerified: true }));
+      setUser(prev => ({ ...prev, isEmailVerified: true, email: newEmail || prev.email }));
     } catch (err) {
       const message = err.response?.data?.message || 'Verification failed';
       throw new Error(message);
@@ -72,6 +82,7 @@ export const AuthProvider = ({ children }) => {
       error, 
       login, 
       logout, 
+      requestOTP,
       verifyOTP, 
       completeOnboarding,
       isAuthenticated: !!user && !user.isFirstLogin && user.isEmailVerified,

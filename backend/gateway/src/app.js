@@ -11,8 +11,10 @@ const app = express();
 
 // Middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true // Allow cookies to be sent from frontend
+  origin: 'http://localhost:5173', // Explicitly allow frontend origin
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
 }));
 app.use(morgan('dev'));
 app.use(cookieParser());
