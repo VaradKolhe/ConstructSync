@@ -15,9 +15,13 @@ mongoose
     console.log('Attendance Service: Connected to MongoDB');
     
     const Attendance = require('./src/models/Attendance');
+    const AttendanceAudit = require('./src/models/AttendanceAudit');
 
     try {
-      // 1. Check if the collection already exists
+      // Create Audit collection
+      await AttendanceAudit.createCollection();
+      
+      // 1. Check if the attendance collection already exists
       const collections = await mongoose.connection.db.listCollections({ name: 'attendances' }).toArray();
       
       if (collections.length === 0) {

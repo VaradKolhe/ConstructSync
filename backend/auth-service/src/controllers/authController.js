@@ -25,20 +25,29 @@ const cookieOptions = {
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
 };
 
-// --- Construction Themed Email Wrappers ---
+// --- Construction Themed Email Wrappers (Industrial Modern) ---
 const emailHeader = `
-  <div style="background-color: #333; padding: 20px; text-align: center; border-bottom: 5px solid #FF8C00;">
-    <h1 style="color: #FF8C00; margin: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-transform: uppercase; letter-spacing: 2px;">
-      🏗️ CONSTRUCT<span style="color: #fff;">SYNC</span>
+  <div style="background-color: #0f172a; padding: 40px 20px; text-align: center; border-bottom: 8px solid #ea580c;">
+    <div style="display: inline-block; background-color: #ea580c; padding: 10px; margin-bottom: 15px;">
+      <span style="font-size: 32px;">🏗️</span>
+    </div>
+    <h1 style="color: #ea580c; margin: 0; font-family: 'Arial Black', sans-serif; text-transform: uppercase; letter-spacing: -1px; font-size: 28px;">
+      CONSTRUCT<span style="color: #ffffff;">SYNC</span>
     </h1>
-    <p style="color: #bbb; margin: 5px 0 0 0; font-size: 12px;">Building Progress, Together.</p>
+    <div style="height: 2px; width: 50px; background-color: #ea580c; margin: 15px auto;"></div>
+    <p style="color: #94a3b8; margin: 0; font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 3px;">Infrastructure Management Systems</p>
   </div>
 `;
 
 const emailFooter = `
-  <div style="background-color: #f4f4f4; padding: 20px; text-align: center; font-size: 12px; color: #777; border-top: 1px solid #ddd;">
-    <p>This is an automated message from the ConstructSync Management System.</p>
-    <p>© 2026 ConstructSync Infrastructure Ltd. | Safety First.</p>
+  <div style="background-color: #f8fafc; padding: 30px; text-align: center; border-top: 2px solid #0f172a;">
+    <p style="font-family: 'Arial', sans-serif; font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px;">
+      Authorized Security Protocol • ConstructSync Stable v2.4.0
+    </p>
+    <div style="color: #94a3b8; font-size: 9px; line-height: 1.5;">
+      © 2026 ConstructSync Infrastructure Ltd.<br/>
+      Safety First. Precision Always.
+    </div>
   </div>
 `;
 
@@ -65,21 +74,28 @@ exports.register = async (req, res, next) => {
         email: user.email,
         subject: "🚧 Action Required: Your New ConstructSync Account",
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #ddd;">
+          <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: auto; border: 2px solid #0f172a; background-color: #ffffff;">
             ${emailHeader}
-            <div style="padding: 30px; line-height: 1.6; color: #333;">
-              <h2 style="color: #333;">Welcome to the Site, ${user.name}!</h2>
-              <p>Your professional account has been provisioned on the <strong>ConstructSync</strong> platform as a <strong>${role}</strong>.</p>
-              <div style="background-color: #fff8e1; border-left: 5px solid #FF8C00; padding: 15px; margin: 20px 0;">
-                <p style="margin: 5px 0;"><strong>Username:</strong> ${user.email}</p>
-                <p style="margin: 5px 0;"><strong>Temporary Password:</strong> <span style="font-family: monospace; font-size: 18px; color: #d32f2f;">${tempPassword}</span></p>
+            <div style="padding: 40px; line-height: 1.6; color: #334155;">
+              <h2 style="color: #0f172a; font-family: 'Arial Black', sans-serif; text-transform: uppercase; margin-top: 0;">Welcome to the Site, ${user.name}</h2>
+              <p style="font-size: 14px;">Your professional account has been provisioned on the <strong>ConstructSync</strong> platform with the following role: <span style="color: #ea580c; font-weight: bold;">${role}</span>.</p>
+              
+              <div style="background-color: #f8fafc; border-left: 4px solid #0f172a; padding: 25px; margin: 30px 0; box-shadow: 4px 4px 0px 0px #0f172a;">
+                <p style="margin: 0 0 10px 0; font-size: 11px; font-weight: bold; text-transform: uppercase; color: #64748b; letter-spacing: 1px;">Access Credentials</p>
+                <p style="margin: 5px 0; font-size: 15px;"><strong>Username:</strong> ${user.email}</p>
+                <p style="margin: 5px 0; font-size: 15px;"><strong>Temporary Password:</strong> <span style="font-family: 'Courier New', monospace; font-weight: bold; color: #ea580c; background-color: #fff7ed; padding: 2px 6px; border: 1px solid #fed7aa;">${tempPassword}</span></p>
               </div>
-              <p><strong>Next Steps:</strong></p>
-              <ol>
-                <li>Log in to the portal using the temporary credentials above.</li>
-                <li>Verify your professional email address.</li>
-                <li>Set your permanent security password.</li>
+
+              <h3 style="color: #0f172a; font-size: 12px; font-weight: 900; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px;">Required Activation Protocol:</h3>
+              <ol style="font-size: 14px; padding-left: 20px;">
+                <li style="margin-bottom: 10px;">Log in to the portal using the temporary credentials above.</li>
+                <li style="margin-bottom: 10px;">Verify your professional email address via OTP.</li>
+                <li style="margin-bottom: 10px;">Establish your permanent master security password.</li>
               </ol>
+
+              <div style="margin-top: 40px; text-align: center;">
+                <a href="#" style="background-color: #ea580c; color: #ffffff; padding: 15px 30px; text-decoration: none; font-weight: bold; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; border: 2px solid #0f172a; box-shadow: 4px 4px 0px 0px #0f172a;">Access Authorization Terminal</a>
+              </div>
             </div>
             ${emailFooter}
           </div>
@@ -105,7 +121,7 @@ exports.register = async (req, res, next) => {
 
 exports.login = async (req, res, next) => {
   try {
-    const { email, password } = req.body;
+    const { email, password, rememberMe } = req.body;
     const ipAddress = req.ip;
 
     const user = await User.findOne({ email }).select("+password +refreshToken");
@@ -146,12 +162,16 @@ exports.login = async (req, res, next) => {
       ipAddress
     });
 
+    // Adjust cookie expiration based on rememberMe
+    const maxAge = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 1 * 24 * 60 * 60 * 1000; // 30 days vs 1 day
+
     res.cookie('accessToken', accessToken, { ...cookieOptions, maxAge: 15 * 60 * 1000 });
-    res.cookie('refreshToken', refreshToken, cookieOptions);
+    res.cookie('refreshToken', refreshToken, { ...cookieOptions, maxAge });
 
     return ApiResponse.success(res, "Login successful", {
       _id: user._id,
       name: user.name,
+      email: user.email,
       role: user.role,
       isFirstLogin: user.isFirstLogin,
       isEmailVerified: user.isEmailVerified
@@ -224,7 +244,31 @@ exports.requestEmailOTP = async (req, res, next) => {
     await sendEmail({
       email: targetEmail,
       subject: `🔑 Verification Code: [${user.otp}]`,
-      html: `${emailHeader}<div style="padding:30px; text-align:center;"><h2>OTP: ${user.otp}</h2></div>${emailFooter}`
+      html: `
+        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: auto; border: 2px solid #0f172a; background-color: #ffffff;">
+          ${emailHeader}
+          <div style="padding: 40px; text-align: center; color: #334155;">
+            <h2 style="color: #0f172a; font-family: 'Arial Black', sans-serif; text-transform: uppercase; margin-top: 0; font-size: 20px;">Identity Verification Required</h2>
+            <p style="font-size: 14px; margin-bottom: 30px;">Please use the following high-security authorization code to verify your professional email address.</p>
+            
+            <div style="background-color: #f8fafc; border: 2px dashed #94a3b8; padding: 30px; margin: 20px auto; max-width: 300px; box-shadow: 6px 6px 0px 0px #ea580c;">
+              <p style="margin: 0 0 10px 0; font-size: 10px; font-weight: bold; text-transform: uppercase; color: #64748b; letter-spacing: 2px;">Verification OTP</p>
+              <span style="font-family: 'Courier New', monospace; font-size: 42px; font-weight: 900; color: #0f172a; letter-spacing: 8px;">${user.otp}</span>
+            </div>
+
+            <p style="font-size: 11px; color: #94a3b8; margin-top: 30px; text-transform: uppercase; font-weight: bold;">
+              ⚠️ This code will expire in 10 minutes.
+            </p>
+            
+            <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #f1f5f9; text-align: left;">
+              <p style="font-size: 12px; color: #64748b; margin: 0;">
+                <strong>Security Notice:</strong> If you did not request this code, please ignore this email or contact the System Administrator immediately.
+              </p>
+            </div>
+          </div>
+          ${emailFooter}
+        </div>
+      `
     });
 
     return ApiResponse.success(res, `OTP sent to ${targetEmail}`);
@@ -273,6 +317,34 @@ exports.getProfile = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
     return ApiResponse.success(res, "Profile fetched", user);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Update current user profile
+ */
+exports.updateProfile = async (req, res, next) => {
+  try {
+    const { name, email } = req.body;
+    const user = await User.findById(req.user.id);
+    if (!user) return ApiResponse.error(res, "User not found", 404);
+
+    if (name) user.name = name;
+    if (email) user.email = email;
+
+    await user.save();
+
+    await logAudit(mongoose, {
+      userId: user._id,
+      action: 'PROFILE_UPDATED',
+      module: 'AUTH',
+      details: { changes: req.body },
+      ipAddress: req.ip
+    });
+
+    return ApiResponse.success(res, "Profile updated successfully", user);
   } catch (error) {
     next(error);
   }

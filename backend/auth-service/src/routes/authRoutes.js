@@ -9,7 +9,8 @@ const {
   verifyEmail,
   completeOnboarding,
   getAllUsers,
-  updateUser
+  updateUser,
+  updateProfile
 } = require('../controllers/authController');
 const { protect, authorize } = require('../../../common/middleware/authMiddleware');
 
@@ -20,6 +21,7 @@ router.post('/login', login);
 router.post('/logout', protect, logout);
 router.post('/refresh', refresh);
 router.get('/profile', protect, getProfile);
+router.put('/update-profile', protect, updateProfile);
 
 // Admin User Management
 router.get('/users', protect, authorize('ADMIN'), getAllUsers);

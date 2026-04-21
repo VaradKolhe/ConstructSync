@@ -49,6 +49,7 @@ describe('Auth Service Integration Tests (Security Hardened)', () => {
     
     expect(res.statusCode).toBe(200);
     expect(res.body.success).toBe(true);
+    expect(res.body.data.email).toBe('admin@test.com');
     
     // Check for cookies
     const cookieHeader = res.get('Set-Cookie');

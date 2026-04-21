@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { User, LogOut, Settings, Bell } from 'lucide-react';
+import ProfileModal from './ProfileModal';
 
 const UserProfileDropdown = () => {
   const { user, logout } = useAuth();
-  const [isOpen, setIsOpen] = React.useState(false);
+  const [isOpen, setIsOpen] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   if (!user) return null;
 
@@ -30,7 +32,13 @@ const UserProfileDropdown = () => {
             <div className="p-3 border-b-2 border-slate-100 bg-slate-50">
               <p className="text-[10px] font-black uppercase text-slate-900">{user.email}</p>
             </div>
-            <button className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-orange-50 transition-colors">
+            <button 
+              onClick={() => {
+                setShowProfile(true);
+                setIsOpen(false);
+              }}
+              className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-orange-50 transition-colors"
+            >
               <Settings className="h-4 w-4 text-slate-600" />
               <span className="text-[10px] font-black uppercase tracking-widest">Settings</span>
             </button>
@@ -44,6 +52,8 @@ const UserProfileDropdown = () => {
           </div>
         </>
       )}
+
+      <ProfileModal isOpen={showProfile} onClose={() => setShowProfile(false)} />
     </div>
   );
 };

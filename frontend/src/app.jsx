@@ -5,30 +5,22 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import MainLayout from './components/layout/MainLayout';
 import LoginPage from './pages/auth/LoginPage';
 import OnboardingPage from './pages/auth/OnboardingPage';
+import AdminDashboard from './pages/AdminDashboard';
+import UserManagement from './pages/UserManagement';
+import LabourDirectory from './pages/LabourDirectory';
+import LabourRegistration from './pages/LabourRegistration';
+import { Toaster } from 'react-hot-toast';
 
 // Placeholder Components for routes
-const Dashboard = () => (
+const AuditLogs = () => (
   <div className="p-10">
     <div className="space-y-2 mb-10">
-      <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Command Center</h1>
-      <p className="text-sm font-medium text-slate-500 uppercase tracking-widest">Project Overview & Real-time Metrics</p>
+      <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Security Audit</h1>
+      <p className="text-sm font-medium text-slate-500 uppercase tracking-widest">System-wide Event Log & Tracking</p>
     </div>
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-      {[1, 2, 3].map(i => (
-        <div key={i} className="p-8 bg-white border-2 border-slate-900 btn-industrial-shadow h-48 flex flex-col justify-end">
-          <div className="w-10 h-1 bg-orange-600 mb-4"></div>
-          <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Metric 0{i}</h3>
-          <p className="text-2xl font-black text-slate-900 uppercase">System Data P{i}</p>
-        </div>
-      ))}
+    <div className="bg-white border-2 border-slate-900 p-20 text-center btn-industrial-shadow">
+      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Audit database offline - Module under development</p>
     </div>
-  </div>
-);
-
-const LabourDirectory = () => (
-  <div className="p-10">
-    <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Labour Directory</h1>
-    <p className="text-sm font-medium text-slate-500 uppercase tracking-widest mt-2">Personnel Database & Management</p>
   </div>
 );
 
@@ -44,6 +36,22 @@ const Unauthorized = () => (
 function App() {
   return (
     <AuthProvider>
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          style: {
+            borderRadius: '0px',
+            border: '2px solid #0f172a',
+            background: '#fff',
+            color: '#0f172a',
+            fontSize: '11px',
+            fontWeight: '900',
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            boxShadow: '4px 4px 0px 0px #0f172a',
+          },
+        }}
+      />
       <Router>
         <Routes>
           {/* Public Routes - No Layout */}
@@ -66,7 +74,26 @@ function App() {
               path="/dashboard" 
               element={
                 <ProtectedRoute>
-                  <Dashboard />
+                  <AdminDashboard />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* Admin Specific Routes */}
+            <Route 
+              path="/users" 
+              element={
+                <ProtectedRoute allowedRoles={['ADMIN']}>
+                  <UserManagement />
+                </ProtectedRoute>
+              } 
+            />
+
+            <Route 
+              path="/analytics" 
+              element={
+                <ProtectedRoute allowedRoles={['ADMIN']}>
+                  <AuditLogs />
                 </ProtectedRoute>
               } 
             />
@@ -77,6 +104,15 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['HR', 'ADMIN']}>
                   <LabourDirectory />
+                </ProtectedRoute>
+              } 
+            />
+
+            <Route 
+              path="/labour/register" 
+              element={
+                <ProtectedRoute allowedRoles={['HR', 'ADMIN']}>
+                  <LabourRegistration />
                 </ProtectedRoute>
               } 
             />

@@ -11,8 +11,21 @@ const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/constructs
 // Connect to MongoDB
 mongoose
   .connect(MONGO_URI)
-  .then(() => {
+  .then(async () => {
     console.log('Labour Service: Connected to MongoDB');
+
+    // Force creation of collections to ensure they exist in DB
+    const Labour = require('./src/models/Labour');
+    const ReferenceData = require('./src/models/ReferenceData');
+    
+    try {
+      await Labour.createCollection();
+      await ReferenceData.createCollection();
+      console.log('Labour Service: Collections initialized');
+    } catch (err) {
+      console.log('Labour Service: Collections already exist');
+    }
+
     app.listen(PORT, () => {
       console.log(`Labour Service: Running on port ${PORT}`);
     });
