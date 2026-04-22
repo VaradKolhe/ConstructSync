@@ -33,7 +33,7 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       const message = err.response?.data?.message || 'Login failed. Please try again.';
       setError(message);
-      throw new Error(message);
+      throw err; // Throw the original error object so LoginPage can access status codes if needed
     }
   };
 
@@ -75,6 +75,26 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const forgotPassword = async (email) => {
+    try {
+      const response = await api.post('/auth/forgot-password', { email });
+      return response.data.message;
+    } catch (err) {
+      const message = err.response?.data?.message || 'Failed to dispatch recovery email';
+      throw new Error(message);
+    }
+  };
+
+  const resetPassword = async (token, password) => {
+    try {
+      const response = await api.put(`/auth/reset-password/${token}`, { password });
+      return response.data.message;
+    } catch (err) {
+      const message = err.response?.data?.message || 'Password reset failed';
+      throw new Error(message);
+    }
+  };
+
   return (
     <AuthContext.Provider value={{ 
       user, 
@@ -86,6 +106,8 @@ export const AuthProvider = ({ children }) => {
       requestOTP,
       verifyOTP, 
       completeOnboarding,
+      forgotPassword,
+      resetPassword,
       isAuthenticated: !!user && !user.isFirstLogin && user.isEmailVerified,
       isPendingOnboarding: !!user && (user.isFirstLogin || !user.isEmailVerified)
     }}>

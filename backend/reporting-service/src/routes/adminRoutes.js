@@ -4,7 +4,7 @@ const { protect, authorize } = require('../../../common/middleware/authMiddlewar
 
 const router = express.Router();
 
-router.get('/dashboard', protect, authorize('ADMIN'), getDashboardKPIs);
+router.get('/dashboard', protect, authorize('HR', 'ADMIN'), getDashboardKPIs);
 router.get('/audit-logs', protect, authorize('ADMIN'), getSystemAuditLogs);
 
 module.exports = router;

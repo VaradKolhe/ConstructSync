@@ -48,10 +48,10 @@ const labourSchema = new mongoose.Schema(
       type: String,
     },
     bankDetails: {
-      accountHolder: String,
-      accountNumber: String,
-      bankName: String,
-      ifscCode: String,
+      accountHolder: { type: String, required: [true, 'Account holder name is required'] },
+      accountNumber: { type: String, required: [true, 'Bank account number is required'] },
+      bankName: { type: String, required: [true, 'Bank identifier is required'] },
+      ifscCode: { type: String, required: [true, 'IFSC routing code is required'] },
     },
     employmentHistory: [
       {

@@ -16,7 +16,11 @@ import {
   Wrench,
   CreditCard,
   ChevronRight,
-  HardHat
+  HardHat,
+  Activity,
+  RefreshCcw,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
@@ -28,7 +32,10 @@ const LabourDirectory = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showFullAadhaar, setShowFullAadhaar] = useState(false);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [skillFilter, setSkillFilter] = useState('');
   const [editData, setEditData] = useState({});
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
@@ -36,9 +43,12 @@ const LabourDirectory = () => {
   const fetchLabours = async () => {
     setLoading(true);
     try {
-      const response = await api.get(`/labours?search=${search}`);
+      let url = `/labours?search=${search}`;
+      if (statusFilter) url += `&status=${statusFilter}`;
+      if (skillFilter) url += `&skill=${skillFilter}`;
+      
+      const response = await api.get(url);
       setLabours(response.data.data.labours);
-      // Update selected labour if it's currently open to reflect changes
       if (selectedLabour) {
         const updated = response.data.data.labours.find(l => l._id === selectedLabour._id);
         if (updated) setSelectedLabour(updated);
@@ -51,8 +61,11 @@ const LabourDirectory = () => {
   };
 
   useEffect(() => {
-    fetchLabours();
-  }, [search]);
+    const timer = setTimeout(() => {
+      fetchLabours();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [search, statusFilter, skillFilter]);
 
   const openProfile = (labour) => {
     setSelectedLabour(labour);
@@ -60,6 +73,7 @@ const LabourDirectory = () => {
     setShowProfile(true);
     setIsEditing(false);
     setShowHistory(false);
+    setShowFullAadhaar(false);
   };
 
   const handleUpdate = async (e) => {
@@ -90,9 +104,19 @@ const LabourDirectory = () => {
     }
   };
 
+  const handleReactivate = async () => {
+    try {
+      await api.put(`/labours/${selectedLabour._id}`, { isActive: true });
+      toast.success('Personnel Record Restored');
+      fetchLabours();
+      setShowProfile(false);
+    } catch (err) {
+      toast.error('Restoration Protocol Failed');
+    }
+  };
+
   return (
     <div className="p-10 space-y-8">
-      {/* ... (Header and Search remain same) ... */}
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div className="space-y-2">
           <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight italic">
@@ -112,21 +136,51 @@ const LabourDirectory = () => {
         </button>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-4">
+      <div className="flex flex-col lg:flex-row gap-4">
         <div className="relative flex-grow">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 h-5 w-5" />
           <input 
             type="text" 
-            placeholder="SEARCH BY LABOUR ID OR NAME..."
+            placeholder="SEARCH BY NAME, ID, PHONE, OR AADHAAR..."
             className="w-full pl-12 pr-4 py-4 border-2 border-slate-900 bg-white text-xs font-black uppercase tracking-widest focus:outline-none focus:bg-slate-50"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <button className="flex items-center justify-center space-x-2 px-6 py-4 border-2 border-slate-900 bg-white text-xs font-black uppercase tracking-widest hover:bg-slate-50">
-          <Filter size={16} />
-          <span>Filter Results</span>
-        </button>
+        
+        <div className="flex gap-4">
+          <select 
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-6 py-4 border-2 border-slate-900 bg-white text-xs font-black uppercase tracking-widest focus:outline-none appearance-none cursor-pointer"
+          >
+            <option value="">ALL STATUSES</option>
+            <option value="AVAILABLE">AVAILABLE</option>
+            <option value="ON-SITE">ON-SITE</option>
+            <option value="ON-LEAVE">ON-LEAVE</option>
+          </select>
+
+          <select 
+            value={skillFilter}
+            onChange={(e) => setSkillFilter(e.target.value)}
+            className="px-6 py-4 border-2 border-slate-900 bg-white text-xs font-black uppercase tracking-widest focus:outline-none appearance-none cursor-pointer"
+          >
+            <option value="">ALL SKILLS</option>
+            <option value="MASON">MASON</option>
+            <option value="CARPENTER">CARPENTER</option>
+            <option value="ELECTRICIAN">ELECTRICIAN</option>
+            <option value="PLUMBER">PLUMBER</option>
+            <option value="HELPER">HELPER</option>
+          </select>
+
+          <button 
+            onClick={() => { setSearch(''); setStatusFilter(''); setSkillFilter(''); }}
+            className="flex items-center justify-center space-x-2 px-6 py-4 border-2 border-slate-900 bg-slate-900 text-white text-xs font-black uppercase tracking-widest hover:bg-slate-800"
+          >
+            <RefreshCcw size={16} />
+            <span>Reset</span>
+          </button>
+        </div>
       </div>
 
       <div className="bg-white border-2 border-slate-900 overflow-hidden shadow-[8px_8px_0px_0px_rgba(15,23,42,1)]">
@@ -152,44 +206,55 @@ const LabourDirectory = () => {
               labours.map((labour) => (
                 <tr 
                   key={labour._id} 
-                  className="hover:bg-slate-50 transition-colors cursor-pointer group"
+                  className={`hover:bg-slate-50 transition-colors cursor-pointer group ${!labour.isActive ? 'bg-slate-50 opacity-70' : ''}`}
                   onClick={() => openProfile(labour)}
                 >
-                  <td className="px-6 py-4">
-                    <span className="text-xs font-black text-slate-900 font-mono tracking-tighter">
-                      {labour.labourId}
-                    </span>
+                  <td className="px-6 py-5">
+                    <div className="flex flex-col">
+                      <span className="text-sm font-black text-slate-900 font-mono tracking-tighter">
+                        {labour.labourId}
+                      </span>
+                      {!labour.isActive && (
+                        <span className="text-[8px] font-black text-red-600 uppercase tracking-widest mt-1">DEREGISTERED</span>
+                      )}
+                    </div>
                   </td>
-                  <td className="px-6 py-4 text-xs font-black text-slate-900 uppercase">
+                  <td className="px-6 py-5 text-sm font-black text-slate-900 uppercase">
                     {labour.name}
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex flex-wrap gap-1">
+                  <td className="px-6 py-5">
+                    <div className="flex flex-wrap gap-1.5">
                       {labour.skills.slice(0, 2).map((skill, idx) => (
-                        <span key={idx} className="text-[8px] font-black px-1.5 py-0.5 bg-slate-100 text-slate-600 uppercase border border-slate-200">
+                        <span key={idx} className="text-[10px] font-black px-2 py-1 bg-slate-100 text-slate-600 uppercase border-2 border-slate-200">
                           {skill}
                         </span>
                       ))}
                       {labour.skills.length > 2 && (
-                        <span className="text-[8px] font-black px-1.5 py-0.5 bg-slate-900 text-white uppercase">
+                        <span className="text-[10px] font-black px-2 py-1 bg-slate-900 text-white uppercase">
                           +{labour.skills.length - 2}
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className={`text-[9px] font-black px-2 py-1 uppercase flex items-center w-fit ${
-                      labour.status === 'AVAILABLE' ? 'text-emerald-600 bg-emerald-50' : 'text-orange-600 bg-orange-50'
+                  <td className="px-6 py-5">
+                    <span className={`text-[10px] font-black px-3 py-1.5 uppercase flex items-center w-fit border-2 ${
+                      !labour.isActive 
+                        ? 'text-slate-400 bg-slate-100 border-slate-200'
+                        : labour.status === 'AVAILABLE' 
+                          ? 'text-emerald-600 bg-emerald-50 border-emerald-100' 
+                          : 'text-orange-600 bg-orange-50 border-orange-100'
                     }`}>
-                      <span className={`w-1.5 h-1.5 rounded-full mr-2 ${
-                        labour.status === 'AVAILABLE' ? 'bg-emerald-600' : 'bg-orange-600'
+                      <span className={`w-2 h-2 rounded-full mr-2 ${
+                        !labour.isActive
+                          ? 'bg-slate-300'
+                          : labour.status === 'AVAILABLE' ? 'bg-emerald-600 animate-pulse' : 'bg-orange-600'
                       }`}></span>
-                      {labour.status}
+                      {labour.isActive ? labour.status : 'INACTIVE'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right">
-                    <button className="p-2 bg-slate-50 text-slate-400 group-hover:bg-slate-900 group-hover:text-white transition-all border border-transparent group-hover:border-slate-900">
-                      <ChevronRight size={16} strokeWidth={3} />
+                  <td className="px-6 py-5 text-right">
+                    <button className="p-2.5 bg-slate-50 text-slate-400 group-hover:bg-slate-900 group-hover:text-white transition-all border-2 border-transparent group-hover:border-slate-900 shadow-sm">
+                      <ChevronRight size={18} strokeWidth={3} />
                     </button>
                   </td>
                 </tr>
@@ -210,7 +275,7 @@ const LabourDirectory = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-slate-900/90 backdrop-blur-sm">
           <div className="bg-white border-4 border-slate-900 max-w-2xl w-full shadow-[16px_16px_0px_0px_rgba(234,88,12,1)] overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]">
             {/* Modal Header */}
-            <div className="bg-slate-900 p-8 text-white relative shrink-0">
+            <div className={`p-8 text-white relative shrink-0 ${!selectedLabour.isActive ? 'bg-slate-700' : 'bg-slate-900'}`}>
               <button 
                 onClick={() => setShowProfile(false)}
                 className="absolute top-6 right-6 p-2 text-slate-400 hover:text-orange-500 transition-colors"
@@ -230,7 +295,7 @@ const LabourDirectory = () => {
                 </div>
                 <div className="space-y-1">
                   <span className="text-[10px] font-black text-orange-500 uppercase tracking-[0.3em]">
-                    {showHistory ? 'Audit Log Viewer' : isEditing ? 'Modification Terminal' : 'Official Profile Card'}
+                    {!selectedLabour.isActive ? 'Deregistered Profile' : showHistory ? 'Audit Log Viewer' : isEditing ? 'Modification Terminal' : 'Official Profile Card'}
                   </span>
                   <h2 className="text-3xl font-black uppercase tracking-tight leading-none">{selectedLabour.name}</h2>
                   <p className="text-lg font-mono text-slate-400 font-bold tracking-tighter">{selectedLabour.labourId}</p>
@@ -238,26 +303,28 @@ const LabourDirectory = () => {
               </div>
 
               {/* Navigation Tabs */}
-              <div className="flex mt-8 space-x-6 border-b border-slate-800">
-                <button 
-                  onClick={() => { setIsEditing(false); setShowHistory(false); }}
-                  className={`text-[10px] font-black uppercase tracking-widest pb-2 transition-all ${!isEditing && !showHistory ? 'text-orange-500 border-b-2 border-orange-500' : 'text-slate-500 hover:text-slate-300'}`}
-                >
-                  Overview
-                </button>
-                <button 
-                  onClick={() => { setIsEditing(true); setShowHistory(false); }}
-                  className={`text-[10px] font-black uppercase tracking-widest pb-2 transition-all ${isEditing ? 'text-orange-500 border-b-2 border-orange-500' : 'text-slate-500 hover:text-slate-300'}`}
-                >
-                  Modify Details
-                </button>
-                <button 
-                  onClick={() => { setIsEditing(false); setShowHistory(true); }}
-                  className={`text-[10px] font-black uppercase tracking-widest pb-2 transition-all ${showHistory ? 'text-orange-500 border-b-2 border-orange-500' : 'text-slate-500 hover:text-slate-300'}`}
-                >
-                  Edit History
-                </button>
-              </div>
+              {selectedLabour.isActive && (
+                <div className="flex mt-8 space-x-6 border-b border-slate-800">
+                  <button 
+                    onClick={() => { setIsEditing(false); setShowHistory(false); }}
+                    className={`text-[10px] font-black uppercase tracking-widest pb-2 transition-all ${!isEditing && !showHistory ? 'text-orange-500 border-b-2 border-orange-500' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    Overview
+                  </button>
+                  <button 
+                    onClick={() => { setIsEditing(true); setShowHistory(false); }}
+                    className={`text-[10px] font-black uppercase tracking-widest pb-2 transition-all ${isEditing ? 'text-orange-500 border-b-2 border-orange-500' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    Modify Details
+                  </button>
+                  <button 
+                    onClick={() => { setIsEditing(false); setShowHistory(true); }}
+                    className={`text-[10px] font-black uppercase tracking-widest pb-2 transition-all ${showHistory ? 'text-orange-500 border-b-2 border-orange-500' : 'text-slate-500 hover:text-slate-300'}`}
+                  >
+                    Edit History
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Modal Body */}
@@ -361,7 +428,6 @@ const LabourDirectory = () => {
                 </form>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-10 animate-in fade-in duration-300">
-                  {/* ... (Existing Overview Grid) ... */}
                   <div className="space-y-6">
                     <section className="space-y-4">
                       <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-2 flex items-center">
@@ -405,7 +471,20 @@ const LabourDirectory = () => {
                       <div className="bg-slate-50 border-2 border-slate-100 p-4 space-y-3">
                         <div className="flex justify-between items-center">
                           <span className="text-[10px] font-black text-slate-400 uppercase">Aadhaar/ID</span>
-                          <span className="text-xs font-black text-slate-900 tracking-widest">**** **** {selectedLabour.aadhaarNumber.slice(-4)}</span>
+                          <div className="flex items-center space-x-3">
+                            <span className="text-xs font-black text-slate-900 tracking-widest">
+                              {showFullAadhaar 
+                                ? selectedLabour.aadhaarNumber.replace(/(\d{4})(\d{4})(\d{4})/, '$1 $2 $3') 
+                                : `**** **** ${selectedLabour.aadhaarNumber.slice(-4)}`}
+                            </span>
+                            <button 
+                              onClick={() => setShowFullAadhaar(!showFullAadhaar)}
+                              className="p-1 text-slate-400 hover:text-orange-600 transition-colors"
+                              title={showFullAadhaar ? "Hide Sensitive Data" : "Reveal Full ID"}
+                            >
+                              {showFullAadhaar ? <EyeOff size={14} /> : <Eye size={14} />}
+                            </button>
+                          </div>
                         </div>
                         <div className="border-t border-slate-200 pt-3">
                           <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Bank Account Terminal</p>
@@ -424,8 +503,8 @@ const LabourDirectory = () => {
                       <div className="p-4 border-2 border-slate-900 flex justify-between items-center">
                         <div>
                           <p className="text-[9px] font-black text-slate-400 uppercase">Current Status</p>
-                          <p className={`text-xs font-black uppercase ${selectedLabour.status === 'AVAILABLE' ? 'text-emerald-600' : 'text-orange-600'}`}>
-                            {selectedLabour.status}
+                          <p className={`text-xs font-black uppercase ${!selectedLabour.isActive ? 'text-slate-400' : selectedLabour.status === 'AVAILABLE' ? 'text-emerald-600' : 'text-orange-600'}`}>
+                            {selectedLabour.isActive ? selectedLabour.status : 'DEREGISTERED'}
                           </p>
                         </div>
                         <button className="px-4 py-2 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest btn-industrial-shadow">
@@ -442,12 +521,21 @@ const LabourDirectory = () => {
                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">
                   Personnel Record Sealed & Audited • CID: {selectedLabour._id.slice(-8).toUpperCase()}
                </p>
-               <button 
-                onClick={handleDeactivate}
-                className="text-[10px] font-black text-red-600 uppercase tracking-widest border-b-2 border-red-600 hover:text-slate-900 hover:border-slate-900 transition-all"
-               >
-                  Revoke Personnel Access
-               </button>
+               {selectedLabour.isActive ? (
+                 <button 
+                  onClick={handleDeactivate}
+                  className="text-[10px] font-black text-red-600 uppercase tracking-widest border-b-2 border-red-600 hover:text-slate-900 hover:border-slate-900 transition-all"
+                 >
+                    Revoke Personnel Access
+                 </button>
+               ) : (
+                 <button 
+                  onClick={handleReactivate}
+                  className="text-[10px] font-black text-emerald-600 uppercase tracking-widest border-b-2 border-emerald-600 hover:text-slate-900 hover:border-slate-900 transition-all"
+                 >
+                    Restore Personnel Access
+                 </button>
+               )}
             </div>
           </div>
         </div>

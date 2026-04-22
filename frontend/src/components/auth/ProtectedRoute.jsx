@@ -24,6 +24,11 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return <Navigate to="/onboarding" replace />;
   }
 
+  // 4. Logged in, onboarding complete, but trying to access onboarding
+  if (!isPendingOnboarding && location.pathname === '/onboarding') {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   // 3. Logged in, onboarding complete, but check roles
   if (allowedRoles && !allowedRoles.includes(user.role)) {
     return <Navigate to="/unauthorized" replace />;

@@ -5,24 +5,14 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import MainLayout from './components/layout/MainLayout';
 import LoginPage from './pages/auth/LoginPage';
 import OnboardingPage from './pages/auth/OnboardingPage';
-import AdminDashboard from './pages/AdminDashboard';
+import ForgotPasswordPage from './pages/auth/ForgotPasswordPage';
+import ResetPasswordPage from './pages/auth/ResetPasswordPage';
+import Dashboard from './pages/Dashboard';
 import UserManagement from './pages/UserManagement';
 import LabourDirectory from './pages/LabourDirectory';
 import LabourRegistration from './pages/LabourRegistration';
+import AuditLogs from './pages/AuditLogs';
 import { Toaster } from 'react-hot-toast';
-
-// Placeholder Components for routes
-const AuditLogs = () => (
-  <div className="p-10">
-    <div className="space-y-2 mb-10">
-      <h1 className="text-3xl font-black text-slate-900 uppercase tracking-tight">Security Audit</h1>
-      <p className="text-sm font-medium text-slate-500 uppercase tracking-widest">System-wide Event Log & Tracking</p>
-    </div>
-    <div className="bg-white border-2 border-slate-900 p-20 text-center btn-industrial-shadow">
-      <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Audit database offline - Module under development</p>
-    </div>
-  </div>
-);
 
 const Unauthorized = () => (
   <div className="h-full flex items-center justify-center p-8 text-center">
@@ -56,25 +46,26 @@ function App() {
         <Routes>
           {/* Public Routes - No Layout */}
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+          <Route 
+            path="/onboarding" 
+            element={
+              <ProtectedRoute>
+                <OnboardingPage />
+              </ProtectedRoute>
+            } 
+          />
 
           {/* Protected Routes - Inside Main Layout */}
           <Route element={<MainLayout />}>
             <Route path="/unauthorized" element={<Unauthorized />} />
-            
-            <Route 
-              path="/onboarding" 
-              element={
-                <ProtectedRoute>
-                  <OnboardingPage />
-                </ProtectedRoute>
-              } 
-            />
 
             <Route 
               path="/dashboard" 
               element={
                 <ProtectedRoute>
-                  <AdminDashboard />
+                  <Dashboard />
                 </ProtectedRoute>
               } 
             />

@@ -20,7 +20,7 @@ router.get('/export/excel', protect, authorize('HR', 'ADMIN'), exportPayrollExce
 router.get('/export/pdf', protect, authorize('HR', 'ADMIN'), exportPdfReport);
 
 // Admin Dashboard & Audit Logs
-router.get('/admin/dashboard', protect, authorize('ADMIN'), getDashboardKPIs);
+router.get('/admin/dashboard', protect, authorize('HR', 'ADMIN'), getDashboardKPIs);
 router.get('/admin/audit-logs', protect, authorize('ADMIN'), getSystemAuditLogs);
 
 // Logs

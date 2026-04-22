@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+global.mongooseInstance = mongoose;
 const dotenv = require('dotenv');
 const app = require('./src/app');
 

@@ -68,25 +68,29 @@ const ProfileModal = ({ isOpen, onClose }) => {
           <form onSubmit={handleUpdate} className="space-y-6">
             <div className="flex justify-center mb-8">
               <div className="relative group">
-                <div className="w-24 h-24 bg-slate-100 border-4 border-slate-900 flex items-center justify-center overflow-hidden">
-                  <User size={48} className="text-slate-300" />
-                </div>
-                <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity cursor-pointer">
-                  <span className="text-[8px] font-black text-white uppercase tracking-widest">Update Photo</span>
+                {/* Visual Initials Avatar */}
+                <div className="w-24 h-24 bg-slate-900 border-4 border-slate-900 flex items-center justify-center shadow-[8px_8px_0px_0px_rgba(234,88,12,1)] relative overflow-hidden">
+                   <div className="absolute inset-0 bg-gradient-to-br from-orange-600/20 to-transparent opacity-50"></div>
+                   <span className="text-5xl font-black text-white italic relative z-10 select-none">
+                      {user.name?.charAt(0).toUpperCase()}
+                   </span>
+                   {/* Decorative industrial elements */}
+                   <div className="absolute top-0 left-0 w-2 h-2 bg-orange-600"></div>
+                   <div className="absolute bottom-0 right-0 w-2 h-2 bg-orange-600"></div>
                 </div>
               </div>
             </div>
 
             <div className="space-y-4">
               <div className="space-y-1">
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Full Legal Name</label>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Full Personnel Name</label>
                 <div className="relative">
                    <input 
                     type="text" 
                     readOnly={!isEditing}
-                    className={`input-industrial ${!isEditing ? 'bg-slate-50 border-slate-200 text-slate-500' : 'bg-white'}`}
+                    className={`input-industrial ${!isEditing ? 'bg-slate-50 border-slate-200 text-slate-500 italic font-medium' : 'bg-white font-black'}`}
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    onChange={(e) => setFormData({...formData, name: e.target.value.toUpperCase()})}
                    />
                    {!isEditing && <Lock className="absolute right-4 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-300" />}
                 </div>
@@ -98,9 +102,9 @@ const ProfileModal = ({ isOpen, onClose }) => {
                    <input 
                     type="email" 
                     readOnly={!isEditing}
-                    className={`input-industrial ${!isEditing ? 'bg-slate-50 border-slate-200 text-slate-500' : 'bg-white'}`}
+                    className={`input-industrial ${!isEditing ? 'bg-slate-50 border-slate-200 text-slate-500 italic font-medium' : 'bg-white font-black'}`}
                     value={formData.email}
-                    onChange={(e) => setFormData({...formData, email: e.target.value})}
+                    onChange={(e) => setFormData({...formData, email: e.target.value.toLowerCase()})}
                    />
                    {!isEditing && <Lock className="absolute right-4 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-300" />}
                 </div>

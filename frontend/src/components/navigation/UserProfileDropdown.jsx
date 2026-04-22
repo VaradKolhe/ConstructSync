@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { User, LogOut, Settings, Bell } from 'lucide-react';
 import ProfileModal from './ProfileModal';
 
 const UserProfileDropdown = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
 
   if (!user) return null;
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');
+  };
 
   return (
     <div className="relative">
@@ -40,10 +47,10 @@ const UserProfileDropdown = () => {
               className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-orange-50 transition-colors"
             >
               <Settings className="h-4 w-4 text-slate-600" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Settings</span>
+              <span className="text-[10px] font-black uppercase tracking-widest">Profile</span>
             </button>
             <button 
-              onClick={logout}
+              onClick={handleLogout}
               className="w-full flex items-center space-x-3 px-4 py-3 text-left hover:bg-red-50 text-red-600 transition-colors border-t-2 border-slate-100"
             >
               <LogOut className="h-4 w-4" />

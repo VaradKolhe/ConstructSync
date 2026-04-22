@@ -41,14 +41,19 @@ exports.createLabour = async (req, res, next) => {
 };
 
 /**
- * Get all labourers (with filters and soft-delete aware) (FR-1.8)
+ * Get all labourers (with filters) (FR-1.8)
  */
 exports.getAllLabours = async (req, res, next) => {
   try {
-    const { status, skill, search, page = 1, limit = 50 } = req.query;
+    const { status, skill, search, page = 1, limit = 50, includeInactive } = req.query;
     
-    // FR-1.7: Only fetch non-deleted profiles
-    let query = { isActive: true };
+    // By default, we show all (active and inactive) as requested, 
+    // but allow explicit filtering via query param if needed in future
+    let query = {};
+    
+    if (includeInactive === 'false') {
+      query.isActive = true;
+    }
 
     if (status) query.status = status;
     if (skill) query.skills = { $in: [skill] };
@@ -56,13 +61,15 @@ exports.getAllLabours = async (req, res, next) => {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
         { labourId: { $regex: search, $options: 'i' } },
+        { phone: { $regex: search, $options: 'i' } },
+        { aadhaarNumber: { $regex: search, $options: 'i' } }
       ];
     }
 
     // FR-1.8: Pagination
     const skip = (page - 1) * limit;
     const labours = await Labour.find(query)
-      .sort({ createdAt: -1 })
+      .sort({ isActive: -1, createdAt: -1 }) // Show active ones first
       .skip(skip)
       .limit(parseInt(limit));
     
@@ -87,7 +94,7 @@ exports.getAllLabours = async (req, res, next) => {
  */
 exports.getLabourById = async (req, res, next) => {
   try {
-    const labour = await Labour.findOne({ _id: req.params.id, isActive: true });
+    const labour = await Labour.findById(req.params.id);
     if (!labour) return ApiResponse.error(res, 'Labour not found', 404);
     return ApiResponse.success(res, 'Labour details fetched', labour);
   } catch (error) {
@@ -101,7 +108,7 @@ exports.getLabourById = async (req, res, next) => {
 exports.updateLabour = async (req, res, next) => {
   try {
     const labour = await Labour.findById(req.params.id);
-    if (!labour || !labour.isActive) return ApiResponse.error(res, 'Labour not found', 404);
+    if (!labour) return ApiResponse.error(res, 'Labour not found', 404);
 
     // FR-1.6: Log edits with editor name and timestamp
     const editorId = req.user.id;

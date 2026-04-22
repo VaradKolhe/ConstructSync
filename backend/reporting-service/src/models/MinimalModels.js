@@ -37,7 +37,8 @@ const User = mongoose.model('User', new mongoose.Schema({
   email: String,
   role: String,
   lastLogin: Date,
-  isActive: Boolean
+  isActive: Boolean,
+  refreshToken: String
 }), 'users');
 
 // System Audit Log Model

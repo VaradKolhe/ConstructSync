@@ -29,7 +29,19 @@ const LoginPage = () => {
         navigate(from, { replace: true });
       }
     } catch (err) {
-      toast.error(err.message || 'Authentication Failed');
+      const errorMessage = err.response?.data?.message || 'Authentication Failed';
+      const status = err.response?.status;
+      
+      if (status === 403) {
+        toast.error(`Access Denied: ${errorMessage}`, {
+          icon: '🚫',
+          duration: 5000
+        });
+      } else if (status === 401) {
+        toast.error('Invalid Credentials: Check email and security key.');
+      } else {
+        toast.error(errorMessage);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -146,8 +158,12 @@ const LoginPage = () => {
                   </div>
                   <span className="text-[11px] font-black tracking-widest text-slate-500 uppercase group-hover:text-slate-900 transition-colors">Remember Me</span>
                 </label>
-                <button type="button" className="text-[11px] font-black tracking-widest text-orange-600 hover:text-slate-900 uppercase underline decoration-2 underline-offset-4">
-                  Recovery
+                <button 
+                  type="button" 
+                  onClick={() => navigate('/forgot-password')}
+                  className="text-[11px] font-black tracking-widest text-orange-600 hover:text-slate-900 uppercase underline decoration-2 underline-offset-4"
+                >
+                  Forgot Password
                 </button>
               </div>
 

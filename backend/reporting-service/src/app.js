@@ -1,5 +1,7 @@
 const express = require('express');
+const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const morgan = require('morgan');
 const reportingRoutes = require('./routes/reportingRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 const errorHandler = require('../../common/middleware/errorMiddleware');
@@ -7,6 +9,11 @@ const errorHandler = require('../../common/middleware/errorMiddleware');
 const app = express();
 
 // Middleware
+app.use(morgan('dev'));
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true
+}));
 app.use(cookieParser());
 app.use(express.json());
 

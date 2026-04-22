@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
-const cookieParser = require('cookie-parser');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const dotenv = require('dotenv');
 
@@ -17,7 +16,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
 }));
 app.use(morgan('dev'));
-app.use(cookieParser());
 
 // Proxy mappings
 const proxies = {
@@ -37,7 +35,7 @@ Object.entries(proxies).forEach(([path, target]) => {
       pathFilter: path,
       on: {
         proxyReq: (proxyReq, req, res) => {
-          // You can add custom headers or logs here if needed
+          console.log(`[Proxy] ${req.method} ${req.originalUrl} -> ${target}${req.url}`);
         },
         error: (err, req, res) => {
           console.error(`Proxy error for ${path}:`, err.message);

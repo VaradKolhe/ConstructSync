@@ -129,7 +129,7 @@ const LabourRegistration = () => {
               </div>
               <div className="space-y-2">
                 <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Aadhaar / National ID</label>
-                <input required type="text" name="aadhaarNumber" className="input-industrial font-mono" placeholder="0000 0000 0000" value={formData.aadhaarNumber} onChange={handleInputChange} />
+                <input required type="text" name="aadhaarNumber" className="input-industrial font-mono" placeholder="6475 XXXX XXXX" value={formData.aadhaarNumber} onChange={handleInputChange} />
               </div>
               <div className="space-y-2">
                 <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Date of Birth</label>
@@ -166,7 +166,7 @@ const LabourRegistration = () => {
           {step === 3 && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
               <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Skill Matrix (Comma Separated)</label>
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Skill Matrix (Required - Comma Separated)</label>
                 <input required type="text" name="skills" className="input-industrial" placeholder="MASONRY, PLUMBING, WELDING..." value={formData.skills} onChange={handleInputChange} />
                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Input technical specializations for deployment filtering.</p>
               </div>

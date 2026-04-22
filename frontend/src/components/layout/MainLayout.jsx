@@ -7,7 +7,7 @@ const MainLayout = () => {
   return (
     <div className="h-screen flex flex-col overflow-hidden industrial-grid bg-white">
       <Header />
-      <main className="flex-grow overflow-hidden relative">
+      <main className="flex-grow overflow-y-auto relative">
         <Outlet />
       </main>
       <Footer />

@@ -23,6 +23,7 @@ const cookieOptions = {
   secure: process.env.NODE_ENV === 'production',
   sameSite: 'Lax',
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+  path: '/', // Ensure cookie is sent for all paths
 };
 
 // --- Construction Themed Email Wrappers (Industrial Modern) ---
@@ -60,13 +61,16 @@ exports.register = async (req, res, next) => {
 
     const tempPassword = crypto.randomBytes(4).toString("hex");
 
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const loginUrl = `${frontendUrl}/login`;
+
     const user = await User.create({
       name,
       email,
       password: tempPassword,
       role,
       isFirstLogin: true,
-      isEmailVerified: false,
+      isEmailVerified: true,
     });
 
     try {
@@ -94,7 +98,7 @@ exports.register = async (req, res, next) => {
               </ol>
 
               <div style="margin-top: 40px; text-align: center;">
-                <a href="#" style="background-color: #ea580c; color: #ffffff; padding: 15px 30px; text-decoration: none; font-weight: bold; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; border: 2px solid #0f172a; box-shadow: 4px 4px 0px 0px #0f172a;">Access Authorization Terminal</a>
+                <a href="${loginUrl}" style="background-color: #ea580c; color: #ffffff; padding: 15px 30px; text-decoration: none; font-weight: bold; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; border: 2px solid #0f172a; box-shadow: 4px 4px 0px 0px #0f172a;">Access Authorization Terminal</a>
               </div>
             </div>
             ${emailFooter}
@@ -213,12 +217,12 @@ exports.refresh = async (req, res, next) => {
     const user = await User.findOne({ _id: decoded.id, refreshToken: token });
     if (!user) return ApiResponse.error(res, "Invalid refresh token", 401);
 
-    const { accessToken, refreshToken } = generateTokens(user._id, user.role, user.isFirstLogin);
-    user.refreshToken = refreshToken;
-    await user.save();
-
+    // Keep existing refresh token to prevent race conditions during simultaneous refreshes
+    const { accessToken } = generateTokens(user._id, user.role, user.isFirstLogin);
+    
     res.cookie('accessToken', accessToken, { ...cookieOptions, maxAge: 15 * 60 * 1000 });
-    res.cookie('refreshToken', refreshToken, cookieOptions);
+    // Refresh token cookie remains the same, just extending its life in the browser if needed
+    res.cookie('refreshToken', token, { ...cookieOptions, maxAge: 30 * 24 * 60 * 60 * 1000 });
 
     return ApiResponse.success(res, "Token refreshed");
   } catch (error) {
@@ -351,6 +355,92 @@ exports.updateProfile = async (req, res, next) => {
 };
 
 /**
+ * Forgot Password (FR-2.7)
+ */
+exports.forgotPassword = async (req, res, next) => {
+  try {
+    const user = await User.findOne({ email: req.body.email });
+    if (!user) return ApiResponse.error(res, "No user found with that email", 404);
+
+    // Get reset token
+    const resetToken = user.getResetPasswordToken();
+    await user.save();
+
+    // Create reset url (points to Frontend)
+    const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+    const resetUrl = `${frontendUrl}/reset-password/${resetToken}`;
+
+    const message = `Security Protocol: Password Reset Requested.\n\nPlease use the following link to establish a new security key:\n\n${resetUrl}\n\nIf you did not initiate this request, please disregard this transmission. Link expires in 10 minutes.`;
+
+    try {
+      await sendEmail({
+        email: user.email,
+        subject: "🔐 Security Protocol: Password Reset Requested",
+        html: `
+          <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: auto; border: 2px solid #0f172a; background-color: #ffffff;">
+            ${emailHeader}
+            <div style="padding: 40px; text-align: center; color: #334155;">
+              <h2 style="color: #0f172a; font-family: 'Arial Black', sans-serif; text-transform: uppercase; margin-top: 0; font-size: 20px;">Password Reset Requested</h2>
+              <p style="font-size: 14px; margin-bottom: 30px;">A request to reset your system access key has been initiated. If you did not authorize this, please contact the System Administrator.</p>
+              
+              <div style="margin: 40px 0;">
+                <a href="${resetUrl}" style="background-color: #ea580c; color: #ffffff; padding: 15px 30px; text-decoration: none; font-weight: bold; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; border: 2px solid #0f172a; box-shadow: 4px 4px 0px 0px #0f172a;">Execute Reset Protocol</a>
+              </div>
+
+              <p style="font-size: 11px; color: #94a3b8; margin-top: 30px; text-transform: uppercase; font-weight: bold;">
+                ⚠️ This authorization link will expire in 10 minutes.
+              </p>
+            </div>
+            ${emailFooter}
+          </div>
+        `,
+      });
+
+      return ApiResponse.success(res, "Recovery email dispatched");
+    } catch (err) {
+      user.resetPasswordToken = undefined;
+      user.resetPasswordExpire = undefined;
+      await user.save();
+      return ApiResponse.error(res, "Email could not be sent", 500);
+    }
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Reset Password (FR-2.7)
+ */
+exports.resetPassword = async (req, res, next) => {
+  try {
+    // Get hashed token
+    const resetPasswordToken = crypto
+      .createHash("sha256")
+      .update(req.params.resettoken)
+      .digest("hex");
+
+    const user = await User.findOne({
+      resetPasswordToken,
+      resetPasswordExpire: { $gt: Date.now() },
+    });
+
+    if (!user) return ApiResponse.error(res, "Invalid or expired recovery token", 400);
+
+    // Set new password
+    user.password = req.body.password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    user.authLogs.push({ event: 'PASSWORD_RESET', ipAddress: req.ip });
+    
+    await user.save();
+
+    return ApiResponse.success(res, "Security key updated successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * Admin: Get all users
  */
 exports.getAllUsers = async (req, res, next) => {
@@ -371,6 +461,17 @@ exports.updateUser = async (req, res, next) => {
     const user = await User.findById(req.params.id);
     if (!user) return ApiResponse.error(res, "User not found", 404);
 
+    // SECURITY: Administrative Protection (FR-2.10)
+    // Prevent deactivation or demotion of ANY admin account (self or others)
+    if (user.role === 'ADMIN') {
+      if (isActive === false) {
+        return ApiResponse.error(res, "Security Protocol: Administrative accounts cannot be deactivated.", 403);
+      }
+      if (role && role !== 'ADMIN') {
+        return ApiResponse.error(res, "Security Protocol: Administrative roles cannot be demoted.", 403);
+      }
+    }
+
     if (name) user.name = name;
     if (email) user.email = email;
     if (role) user.role = role;
@@ -387,6 +488,31 @@ exports.updateUser = async (req, res, next) => {
     });
 
     return ApiResponse.success(res, "User updated successfully", user);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Admin: Kill user session (Force Logout)
+ */
+exports.killSession = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return ApiResponse.error(res, "User not found", 404);
+
+    user.refreshToken = undefined;
+    await user.save();
+
+    await logAudit(mongoose, {
+      userId: req.user.id,
+      action: 'SESSION_KILLED',
+      module: 'AUTH',
+      details: { targetUserId: user._id, targetEmail: user.email },
+      ipAddress: req.ip
+    });
+
+    return ApiResponse.success(res, `Session terminated for ${user.name}`);
   } catch (error) {
     next(error);
   }
