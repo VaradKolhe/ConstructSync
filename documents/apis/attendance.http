@@ -1,0 +1,61 @@
+@baseUrl = http://localhost:5000/api
+
+# ====================================================================================================
+# STEP 1: AUTHENTICATION
+# ====================================================================================================
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@test.com",
+  "password": "admin123"
+}
+
+###
+@authToken = {{login.response.body.data.token}}
+
+# ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# STEP 2: ATTENDANCE OPERATIONS
+# ====================================================================================================
+
+# Check-in (Supervisor/Admin required)
+# @name checkIn
+POST {{baseUrl}}/attendances/check-in
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "labourId": "INSERT_LABOUR_OBJECT_ID_HERE",
+  "siteId": "INSERT_SITE_OBJECT_ID_HERE",
+  "date": "2026-04-19"
+}
+
+###
+
+# Check-out (Supervisor/Admin required)
+@attendanceId = {{checkIn.response.body.data._id}}
+PUT {{baseUrl}}/attendances/check-out/{{attendanceId}}
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "checkOutTime": "2026-04-19T18:00:00.000Z"
+}
+
+###
+
+# View Site Attendance
+GET {{baseUrl}}/attendances/site/INSERT_SITE_OBJECT_ID_HERE
+Authorization: Bearer {{authToken}}
+
+###
+
+# View Labour History
+GET {{baseUrl}}/attendances/labour/INSERT_LABOUR_OBJECT_ID_HERE
+Authorization: Bearer {{authToken}}
+
+###
+# ----------------------------------------------------------------------------------------------------

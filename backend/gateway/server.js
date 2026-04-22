@@ -1,10 +1,10 @@
-require('dotenv').config();
-
 const app = require('./src/app');
+const dotenv = require('dotenv');
 
-const PORT = process.env.PORT;
+dotenv.config();
+
+const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`Gateway service is running on port ${PORT}`);
+  console.log(`API Gateway: Running on port ${PORT}`);
 });
-

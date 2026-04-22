@@ -1,15 +1,28 @@
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
+const attendanceRoutes = require('./routes/attendanceRoutes');
+const errorHandler = require('../../common/middleware/errorMiddleware');
 
 const app = express();
 
-app.use(cors());
+// Middleware
+app.use(cors({
+  origin: 'http://localhost:5173',
+  credentials: true
+}));
+app.use(cookieParser());
 app.use(express.json());
 
-// Single test route (required)
-app.get('/', (req, res) => {
-  res.send('Service is running');
+// Routes
+app.use('/api/attendances', attendanceRoutes);
+
+// Health Check
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'Attendance Service is running' });
 });
 
-module.exports = app;
+// Error Handler
+app.use(errorHandler);
 
+module.exports = app;

@@ -1,0 +1,35 @@
+@baseUrl = http://localhost:5000/api
+
+# ====================================================================================================
+# STEP 1: AUTHENTICATION
+# ====================================================================================================
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@test.com",
+  "password": "admin123"
+}
+
+###
+@authToken = {{login.response.body.data.token}}
+
+# ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# STEP 2: REPORTING OPERATIONS
+# ====================================================================================================
+
+# Get Attendance Report (HR/Admin required)
+GET {{baseUrl}}/reporting/attendance?siteId=INSERT_SITE_OBJECT_ID_HERE&month=4&year=2026
+Authorization: Bearer {{authToken}}
+
+###
+
+# Get Payroll Summary (HR/Admin required)
+GET {{baseUrl}}/reporting/payroll?month=4&year=2026
+Authorization: Bearer {{authToken}}
+
+###
+# ----------------------------------------------------------------------------------------------------

@@ -1,0 +1,70 @@
+@baseUrl = http://localhost:5000/api
+
+# ====================================================================================================
+# STEP 1: AUTHENTICATION
+# ====================================================================================================
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@test.com",
+  "password": "admin123"
+}
+
+###
+@authToken = {{login.response.body.data.token}}
+
+# ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# STEP 2: LABOUR MANAGEMENT
+# ====================================================================================================
+
+# List All Labours
+GET {{baseUrl}}/labours
+Authorization: Bearer {{authToken}}
+
+###
+
+# Create New Labour (HR/ADMIN required)
+# @name createLabour
+POST {{baseUrl}}/labours
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "labourId": "L001",
+  "name": "John Doe",
+  "phone": "9876543210",
+  "skills": ["Carpentry", "Masonry"],
+  "address": "123 Construction Site Road"
+}
+
+###
+
+# Get Specific Labour by ID
+@labourId = {{createLabour.response.body.data._id}}
+GET {{baseUrl}}/labours/{{labourId}}
+Authorization: Bearer {{authToken}}
+
+###
+
+# Update Labour Profile
+PUT {{baseUrl}}/labours/{{labourId}}
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "name": "John Updated Doe",
+  "skills": ["Carpentry", "Masonry", "Plumbing"]
+}
+
+###
+
+# Delete Labour
+DELETE {{baseUrl}}/labours/{{labourId}}
+Authorization: Bearer {{authToken}}
+
+###
+# ----------------------------------------------------------------------------------------------------

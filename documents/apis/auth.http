@@ -1,0 +1,155 @@
+@baseUrl = http://localhost:5000/api
+
+# ====================================================================================================
+# STEP 1: ADMIN LOGIN
+# ====================================================================================================
+# @name adminLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  // "email": "admin@test.com",
+  // "password": "password123"
+  "email": "202301040150@mitaoe.ac.in",
+  "password": "Varad@1234"
+}
+
+###
+# ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# STEP 2: REGISTER NEW USER (ADMIN ONLY)
+# ====================================================================================================
+# @name register
+@adminToken = {{adminLogin.response.body.data.token}}
+
+POST {{baseUrl}}/auth/register
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "name": "Varad Kolhe",
+  "email": "varad4422@gmail.com",
+  "role": "HR"
+}
+
+###
+# ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# STEP 3: USER FIRST LOGIN
+# ====================================================================================================
+# @name userLogin
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "varad4422@gmail.com",
+  "password": "8bb74351"
+}
+
+###
+# ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# STEP 4: REQUEST OTP
+# ====================================================================================================
+# @name requestOTP
+@userToken = {{userLogin.response.body.data.token}}
+POST {{baseUrl}}/auth/request-otp
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+###
+# ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# STEP 5: VERIFY EMAIL & OTP
+# ====================================================================================================
+# @name verifyEmail
+POST {{baseUrl}}/auth/verify-email
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "otp": "545691"
+}
+
+###
+# ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# STEP 6: COMPLETE ONBOARDING
+# ====================================================================================================
+# @name completeOnboarding
+POST {{baseUrl}}/auth/complete-onboarding 
+Authorization: Bearer {{userToken}}
+Content-Type: application/json
+
+{
+  "newPassword": "Abc@1234" 
+  // Validation: Min 8 chars, 1 Upper, 1 Lower, 1 Number, 1 Special Char
+}
+
+###
+#----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# STEP 7: FINAL PROFILE CHECK
+# ====================================================================================================
+GET {{baseUrl}}/auth/profile
+Authorization: Bearer {{userToken}}
+
+### ----------------------------------------------------------------------------------------------------
+
+# ====================================================================================================
+# OPTIONAL: ADMIN INITIALIZATION FLOW (FIRST TIME SETUP)
+# ====================================================================================================
+# 1. Login with placeholder credentials
+# @name adminInitLogin
+
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@test.com",
+  "password": "admin123"
+}
+
+###
+
+# 2. Admin requests OTP to their REAL email
+@adminInitToken = {{adminInitLogin.response.body.data.token}}
+POST {{baseUrl}}/auth/request-otp
+Authorization: Bearer {{adminInitToken}}
+Content-Type: application/json
+
+{
+  "newEmail": "202301040150@mitaoe.ac.in"
+}
+
+###
+
+# 3. Admin verifies OTP and sets their REAL email
+POST {{baseUrl}}/auth/verify-email
+Authorization: Bearer {{adminInitToken}}
+Content-Type: application/json
+
+{
+  "otp": "282569", 
+  "newEmail": "202301040150@mitaoe.ac.in"
+}
+
+###
+
+# 4. Admin completes onboarding with a STRONG password
+POST {{baseUrl}}/auth/complete-onboarding
+Authorization: Bearer {{adminInitToken}}
+Content-Type: application/json
+
+{
+  "newPassword": "Varad@1234"
+}
+
+###
+# ----------------------------------------------------------------------------------------------------
