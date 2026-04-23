@@ -1,21 +1,27 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
-WORKDIR /usr/src/app
+# Set build environment
+ENV NODE_ENV=production
 
-# Copy shared common code
+WORKDIR /app
+
+# Copy the common library
 COPY common ./common
 
-# Copy auth-service code
-COPY auth-service ./auth-service
-
-# Move to auth-service directory
-WORKDIR /usr/src/app/auth-service
+# Copy package files for the service
+COPY auth-service/package*.json ./auth-service/
 
 # Install dependencies
-RUN npm install --production
+RUN cd auth-service && npm install --production
 
-# Expose port
+# Copy service source code
+COPY auth-service ./auth-service
+
+# Use non-root user for security
+USER node
+
+WORKDIR /app/auth-service
+
 EXPOSE 5001
 
-# Start the service
 CMD ["node", "server.js"]

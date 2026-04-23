@@ -58,12 +58,18 @@ const WorkforceDeployment = () => {
       
       let labourUrl = `/labours?search=${search}`;
       
-      // Supervisor Constraint: Only see their site's personnel
+      // Supervisor Constraint: Only see their sites' personnel
       if (user?.role === 'SUPERVISOR') {
-        const mySite = siteList.find(s => s.supervisorId === user.id);
-        if (mySite) {
-          labourUrl += `&siteId=${mySite._id}`;
-          setSelectedSiteId(mySite._id);
+        const mySites = siteList.filter(s => s.supervisorId === user.id);
+        const mySiteIds = mySites.map(s => s._id);
+        
+        if (mySiteIds.length > 0) {
+          // If no specific site selected, show all their sites' personnel
+          if (!selectedSiteId || !mySiteIds.includes(selectedSiteId)) {
+             labourUrl += `&siteIds=${mySiteIds.join(',')}`;
+          } else {
+             labourUrl += `&siteId=${selectedSiteId}`;
+          }
         } else {
           setLabours([]);
           setLoading(false);
@@ -264,8 +270,7 @@ const WorkforceDeployment = () => {
                   <div className="flex justify-between items-center">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Awaiting Deployment</span>
                     <span className="text-2xl font-black text-orange-500">
-                      {/* This would need another API call or filter to be accurate across all labour */}
-                      Syncing...
+                      {labours.filter(l => l.status === 'AVAILABLE').length}
                     </span>
                   </div>
                 )}

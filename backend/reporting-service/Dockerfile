@@ -1,21 +1,21 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
-WORKDIR /usr/src/app
+ENV NODE_ENV=production
 
-# Copy shared common code
+WORKDIR /app
+
 COPY common ./common
 
-# Copy service code
+COPY reporting-service/package*.json ./reporting-service/
+
+RUN cd reporting-service && npm install --production
+
 COPY reporting-service ./reporting-service
 
-# Move to service directory
-WORKDIR /usr/src/app/reporting-service
+USER node
 
-# Install dependencies
-RUN npm install --production
+WORKDIR /app/reporting-service
 
-# Expose port
 EXPOSE 5005
 
-# Start the service
 CMD ["node", "server.js"]

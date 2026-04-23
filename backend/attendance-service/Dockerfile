@@ -1,21 +1,21 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
-WORKDIR /usr/src/app
+ENV NODE_ENV=production
 
-# Copy shared common code
+WORKDIR /app
+
 COPY common ./common
 
-# Copy service code
+COPY attendance-service/package*.json ./attendance-service/
+
+RUN cd attendance-service && npm install --production
+
 COPY attendance-service ./attendance-service
 
-# Move to service directory
-WORKDIR /usr/src/app/attendance-service
+USER node
 
-# Install dependencies
-RUN npm install --production
+WORKDIR /app/attendance-service
 
-# Expose port
 EXPOSE 5003
 
-# Start the service
 CMD ["node", "server.js"]

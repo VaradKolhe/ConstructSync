@@ -179,6 +179,13 @@ const SiteManagement = () => {
                   </div>
                 </div>
                 
+                {site.isLocked && (
+                  <div className="bg-red-600 text-white px-6 py-2 flex items-center justify-center space-x-2 animate-pulse">
+                    <ShieldAlert size={12} />
+                    <span className="text-[8px] font-black uppercase tracking-[0.2em]">Master Lock Engaged — Ops Suspended</span>
+                  </div>
+                )}
+                
                 <div className="p-6 space-y-4">
                   <div className="space-y-3">
                     <div className="flex flex-col">

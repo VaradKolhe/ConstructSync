@@ -4,6 +4,10 @@ const cookieParser = require('cookie-parser');
 const deploymentRoutes = require('./routes/deploymentRoutes');
 const errorHandler = require('../../common/middleware/errorMiddleware');
 
+// Ensure models are registered
+require('./models/Labour');
+require('./models/Deployment');
+
 const app = express();
 
 // Middleware

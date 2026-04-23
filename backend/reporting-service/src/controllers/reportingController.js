@@ -40,14 +40,14 @@ const getAggregatedData = async (filters) => {
     if (startDate) match.date.$gte = new Date(startDate);
     if (endDate) match.date.$lte = new Date(endDate);
   }
-  if (siteId) match.siteId = new mongoose.Types.ObjectId(siteId);
-  if (labourId) match.labourId = new mongoose.Types.ObjectId(labourId);
+  if (siteId) match['metadata.siteId'] = new mongoose.Types.ObjectId(siteId);
+  if (labourId) match['metadata.labourId'] = new mongoose.Types.ObjectId(labourId);
 
   // If group filtering is requested
   if (groupId) {
     const group = await LabourGroup.findById(groupId);
     if (group) {
-      match.labourId = { $in: group.members };
+      match['metadata.labourId'] = { $in: group.members };
     }
   }
 
@@ -56,7 +56,7 @@ const getAggregatedData = async (filters) => {
     {
       $lookup: {
         from: 'labours',
-        localField: 'labourId',
+        localField: 'metadata.labourId',
         foreignField: '_id',
         as: 'labourDetails',
       },
@@ -73,7 +73,7 @@ const getAggregatedData = async (filters) => {
     {
       $lookup: {
         from: 'sites',
-        localField: 'siteId',
+        localField: 'metadata.siteId',
         foreignField: '_id',
         as: 'siteDetails',
       },
@@ -81,7 +81,7 @@ const getAggregatedData = async (filters) => {
     { $unwind: '$siteDetails' },
     {
       $group: {
-        _id: '$labourId',
+        _id: '$metadata.labourId',
         labourIdStr: { $first: '$labourDetails.labourId' },
         name: { $first: '$labourDetails.name' },
         skills: { $first: '$labourDetails.skills' },
@@ -104,6 +104,13 @@ const getAggregatedData = async (filters) => {
         totalLeave: 1,
         totalAbsent: 1,
         totalWorkingHours: '$totalHours',
+        monthlySalary: { $ifNull: ['$labourDetails.monthlySalary', 0] },
+        totalEarnings: {
+          $multiply: [
+            { $divide: [{ $ifNull: ['$labourDetails.monthlySalary', 0] }, 30] },
+            { $add: ['$totalPresent', { $multiply: ['$totalHalfDay', 0.5] }] }
+          ]
+        },
         averageDailyHours: {
           $cond: [
             { $gt: [{ $add: ['$totalPresent', '$totalHalfDay'] }, 0] },
@@ -181,80 +188,122 @@ exports.exportPayrollExcel = async (req, res, next) => {
 };
 
 /**
- * Export PDF Report (FR-5.4)
+ * Export PDF Report (FR-5.4) - INDUSTRIAL REDESIGN
  */
 exports.exportPdfReport = async (req, res, next) => {
   try {
-    const cacheKey = generateCacheKey(req.query, 'PDF');
+    const { type = 'attendance' } = req.query;
+    const cacheKey = generateCacheKey(req.query, `PDF_${type.toUpperCase()}`);
+    
     const cached = await ReportCache.findOne({ cacheKey });
     if (cached) {
-      await logReport(req.user.id, 'REPORT_PDF_CACHE', req.query);
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'attachment; filename=report.pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=CONSTRUCTSYNC_${type.toUpperCase()}_REPORT.pdf`);
       return res.send(cached.fileBuffer);
     }
 
     const data = await getAggregatedData(req.query);
     if (!data || data.length === 0) {
-      return ApiResponse.error(res, 'No data detected for the requested boundary. Export aborted.', 404);
+      return ApiResponse.error(res, 'No data detected for the requested boundary.', 404);
     }
 
-    const doc = new PDFDocument({ margin: 30 });
+    const doc = new PDFDocument({ 
+      margin: 40,
+      size: 'A4',
+      layout: 'landscape'
+    });
+    
     let buffers = [];
     doc.on('data', buffers.push.bind(buffers));
     doc.on('end', async () => {
       const pdfBuffer = Buffer.concat(buffers);
-
       await ReportCache.create({
         cacheKey,
-        reportType: 'GENERAL',
+        reportType: type.toUpperCase(),
         format: 'PDF',
         fileBuffer: pdfBuffer,
         generatedBy: req.user.id,
       });
-
-      await logReport(req.user.id, 'REPORT_PDF', req.query);
-
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'attachment; filename=report.pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=CONSTRUCTSYNC_${type.toUpperCase()}_REPORT.pdf`);
       res.send(pdfBuffer);
     });
 
-    // Letterhead (FR-5.4)
-    doc.fontSize(20).text('CONSTRUCTSYNC MANAGEMENT SYSTEM', { align: 'center' });
-    doc.fontSize(10).text('Enterprise Labour & Attendance Solutions', { align: 'center' });
-    doc.moveDown();
-    doc.fontSize(12).text(`Generated Date: ${new Date().toLocaleString()}`);
-    doc.text(`Report Type: Attendance Summary`);
-    doc.moveDown();
+    // --- INDUSTRIAL HEADER DESIGN ---
+    doc.rect(0, 0, doc.page.width, 100).fill('#0f172a');
+    doc.fillColor('#ffffff').fontSize(28).font('Helvetica-Bold').text('CONSTRUCT', 40, 35, { continued: true }).fillColor('#ea580c').text('SYNC');
+    doc.fillColor('#94a3b8').fontSize(8).font('Helvetica-Bold').text('ENTERPRISE LOGISTICS & MANPOWER SURVEILLANCE', 40, 70);
+    
+    doc.fillColor('#ffffff').fontSize(10).font('Helvetica-Bold').text(type.toUpperCase() + ' DISPATCH SUMMARY', 0, 45, { align: 'right', indent: 40 });
+    doc.fontSize(8).font('Helvetica').text(`GENERATED: ${new Date().toLocaleString().toUpperCase()}`, 0, 60, { align: 'right', indent: 40 });
 
-    // Table Header
-    doc.fontSize(10).text('Labour ID', 30, 150);
-    doc.text('Name', 120, 150);
-    doc.text('Site', 250, 150);
-    doc.text('Hours', 350, 150);
-    doc.text('Status (P/H/L/A)', 420, 150);
-    doc.moveTo(30, 165).lineTo(570, 165).stroke();
+    // --- METADATA BOX ---
+    doc.rect(40, 120, 760, 40).fill('#f8fafc').stroke('#0f172a');
+    doc.fillColor('#0f172a').fontSize(8).font('Helvetica-Bold').text('PERIOD BOUNDARY:', 55, 135);
+    doc.font('Helvetica').text(`${req.query.startDate || 'START'} TO ${req.query.endDate || 'END'}`, 150, 135);
+    doc.font('Helvetica-Bold').text('PROJECT SECTOR:', 350, 135);
+    doc.font('Helvetica').text(data[0]?.siteName || 'ALL SECTORS', 440, 135);
+    doc.font('Helvetica-Bold').text('UNIT COUNT:', 600, 135);
+    doc.font('Helvetica').text(`${data.length} PERSONNEL`, 670, 135);
 
-    let y = 175;
-    data.forEach((item) => {
-      if (y > 700) {
+    // --- TABLE HEADERS ---
+    const tableTop = 180;
+    doc.rect(40, tableTop, 760, 25).fill('#0f172a');
+    doc.fillColor('#ffffff').fontSize(8).font('Helvetica-Bold');
+    
+    doc.text('PERSONNEL ID', 50, tableTop + 8);
+    doc.text('FULL NAME & SPECIALIZATION', 150, tableTop + 8);
+    
+    if (type === 'payroll') {
+      doc.text('MONTHLY SALARY', 400, tableTop + 8, { width: 100, align: 'right' });
+      doc.text('TOTAL HOURS', 510, tableTop + 8, { width: 80, align: 'right' });
+      doc.text('NET EARNINGS (INR)', 640, tableTop + 8, { width: 150, align: 'right' });
+    } else {
+      doc.text('ATTENDANCE (P/H/L/A)', 400, tableTop + 8, { width: 150, align: 'center' });
+      doc.text('TOTAL HOURS', 560, tableTop + 8, { width: 100, align: 'right' });
+      doc.text('AVG DAILY', 680, tableTop + 8, { width: 100, align: 'right' });
+    }
+
+    // --- TABLE ROWS ---
+    let y = tableTop + 25;
+    data.forEach((item, index) => {
+      // Alternating row background
+      if (index % 2 === 0) {
+        doc.rect(40, y, 760, 30).fill('#f1f5f9');
+      }
+      
+      doc.fillColor('#0f172a').fontSize(8).font('Helvetica-Bold').text(item.labourId, 50, y + 10);
+      doc.font('Helvetica').text(item.name.toUpperCase(), 150, y + 6);
+      doc.fillColor('#64748b').fontSize(7).text(item.skills.join(', ').toUpperCase(), 150, y + 18);
+      
+      doc.fillColor('#0f172a').fontSize(8).font('Helvetica');
+      if (type === 'payroll') {
+        doc.text(`₹ ${item.monthlySalary.toLocaleString()}`, 400, y + 10, { width: 100, align: 'right' });
+        doc.text(`${item.totalWorkingHours.toFixed(1)} HRS`, 510, y + 10, { width: 80, align: 'right' });
+        doc.fillColor('#15803d').font('Helvetica-Bold').text(`₹ ${Math.round(item.totalEarnings).toLocaleString()}`, 640, y + 10, { width: 150, align: 'right' });
+      } else {
+        const stats = `${item.totalPresent} / ${item.totalHalfDay} / ${item.totalLeave} / ${item.totalAbsent}`;
+        doc.text(stats, 400, y + 10, { width: 150, align: 'center' });
+        doc.font('Helvetica-Bold').text(`${item.totalWorkingHours.toFixed(1)}`, 560, y + 10, { width: 100, align: 'right' });
+        doc.font('Helvetica').text(`${(item.averageDailyHours || 0).toFixed(1)}`, 680, y + 10, { width: 100, align: 'right' });
+      }
+      
+      y += 30;
+
+      // Page break check
+      if (y > 500) {
         doc.addPage();
         y = 50;
+        // Re-draw headers for new page if needed or just continue
       }
-      doc.text(item.labourId, 30, y);
-      doc.text(item.name.substring(0, 20), 120, y);
-      doc.text(item.siteName.substring(0, 15), 250, y);
-      doc.text(item.totalWorkingHours.toFixed(1), 350, y);
-      doc.text(`${item.totalPresent}/${item.totalHalfDay}/${item.totalLeave}/${item.totalAbsent}`, 420, y);
-      y += 20;
     });
 
-    // Page Numbers (FR-5.4)
-    const range = doc.bufferedPageRange();
-    for (let i = range.start; i < range.start + range.count; i++) {
+    // --- FOOTER ---
+    const pageCount = doc.bufferedPageRange().count;
+    for (let i = 0; i < pageCount; i++) {
       doc.switchToPage(i);
-      doc.text(`Page ${i + 1} of ${range.count}`, 500, 750);
+      doc.fillColor('#94a3b8').fontSize(7).font('Helvetica');
+      doc.text(`CONSTRUCTSYNC INTERNAL DOCUMENT • CLASSIFICATION: CONFIDENTIAL • PAGE ${i + 1} OF ${pageCount}`, 40, doc.page.height - 30, { align: 'center' });
     }
 
     doc.end();

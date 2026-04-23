@@ -2,8 +2,10 @@ const mongoose = require('mongoose');
 
 // Attendance Model
 const Attendance = mongoose.model('Attendance', new mongoose.Schema({
-  labourId: mongoose.Schema.Types.ObjectId,
-  siteId: mongoose.Schema.Types.ObjectId,
+  metadata: {
+    labourId: mongoose.Schema.Types.ObjectId,
+    siteId: mongoose.Schema.Types.ObjectId,
+  },
   date: Date,
   status: String,
   totalHours: Number,
@@ -16,6 +18,7 @@ const Labour = mongoose.model('Labour', new mongoose.Schema({
   name: String,
   labourId: String,
   skills: [String],
+  monthlySalary: Number,
   isActive: Boolean
 }), 'labours');
 
