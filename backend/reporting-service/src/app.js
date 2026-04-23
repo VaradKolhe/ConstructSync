@@ -19,6 +19,7 @@ app.use(express.json());
 
 // Routes
 app.use('/api/reporting', reportingRoutes);
+app.use('/api/reporting/admin', adminRoutes);
 
 // Health Check
 app.get('/health', (req, res) => {

@@ -246,7 +246,9 @@ const Dashboard = () => {
                 </div>
 
                 <div className="pt-4 border-t-2 border-slate-50 flex flex-col gap-3">
-                   <button className="w-full py-4 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-orange-600 transition-colors flex items-center justify-center space-x-2">
+                   <button 
+                    onClick={() => navigate('/attendance')}
+                    className="w-full py-4 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-orange-600 transition-colors flex items-center justify-center space-x-2">
                      <CalendarCheck size={16} />
                      <span>Open Attendance Terminal</span>
                    </button>
@@ -340,7 +342,10 @@ const Dashboard = () => {
           {/* SUPERVISOR: Quick Actions */}
           {user?.role === 'SUPERVISOR' && (
             <div className="grid grid-cols-1 gap-4">
-              <div className="bg-orange-600 p-6 text-white btn-industrial-shadow flex items-center justify-between group cursor-pointer hover:bg-orange-700 transition-colors">
+              <div 
+                onClick={() => navigate('/attendance')}
+                className="bg-orange-600 p-6 text-white btn-industrial-shadow flex items-center justify-between group cursor-pointer hover:bg-orange-700 transition-colors"
+              >
                 <div>
                   <h4 className="text-sm font-black uppercase tracking-widest mb-1">Register Attendance</h4>
                   <p className="text-[10px] font-bold opacity-80 uppercase">Mark Daily Work Logs</p>

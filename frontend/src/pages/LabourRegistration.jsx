@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { 
@@ -12,13 +12,16 @@ import {
   Wrench,
   CreditCard,
   MapPin,
-  Smartphone
+  Smartphone,
+  Plus
 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import IndustrialSelect from '../components/common/IndustrialSelect';
 
 const LabourRegistration = () => {
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [skills, setSkills] = useState([]);
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -28,7 +31,7 @@ const LabourRegistration = () => {
     phone: '',
     emergencyContact: '',
     address: '',
-    skills: '',
+    skills: [],
     aadhaarNumber: '',
     bankDetails: {
       accountHolder: '',
@@ -37,6 +40,72 @@ const LabourRegistration = () => {
       ifscCode: ''
     }
   });
+
+  useEffect(() => {
+    const fetchSkills = async () => {
+      try {
+        const response = await api.get('/labours/reference-data?type=SKILL_TYPE');
+        setSkills(response.data.data);
+      } catch (err) {
+        console.error('Failed to fetch skills');
+      }
+    };
+    fetchSkills();
+  }, []);
+
+  const toggleSkill = (skillName) => {
+    setFormData(prev => {
+      const currentSkills = [...prev.skills];
+      if (currentSkills.includes(skillName)) {
+        return { ...prev, skills: currentSkills.filter(s => s !== skillName) };
+      } else {
+        return { ...prev, skills: [...currentSkills, skillName] };
+      }
+    });
+  };
+
+  const validateStep = () => {
+    switch (step) {
+      case 1:
+        if (!formData.name || !formData.aadhaarNumber || !formData.dateOfBirth || !formData.gender) {
+          toast.error('Identity Verification Incomplete: Mandatory Fields Missing');
+          return false;
+        }
+        // Aadhaar format validation (simple check for now)
+        if (formData.aadhaarNumber.length < 12) {
+          toast.error('Identity Protocol Error: Invalid Aadhaar/ID Format');
+          return false;
+        }
+        return true;
+      case 2:
+        if (!formData.phone || !formData.emergencyContact || !formData.address) {
+          toast.error('Contact Grid Failure: Missing Communication Data');
+          return false;
+        }
+        return true;
+      case 3:
+        if (formData.skills.length === 0) {
+          toast.error('Skill Matrix Error: At least one specialization required');
+          return false;
+        }
+        return true;
+      case 4:
+        const { accountHolder, accountNumber, bankName, ifscCode } = formData.bankDetails;
+        if (!accountHolder || !accountNumber || !bankName || !ifscCode) {
+          toast.error('Financial Registry Incomplete: Missing Banking Parameters');
+          return false;
+        }
+        return true;
+      default:
+        return false;
+    }
+  };
+
+  const nextStep = () => {
+    if (validateStep()) {
+      setStep(prev => prev + 1);
+    }
+  };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -53,14 +122,27 @@ const LabourRegistration = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!validateStep()) return;
+
     setLoading(true);
     try {
-      const skillsArray = formData.skills.split(',').map(s => s.trim()).filter(s => s !== '');
-      await api.post('/labours', { ...formData, skills: skillsArray });
+      await api.post('/labours', formData);
       toast.success('Personnel Successfully Registered & IDs Generated');
       navigate('/labour');
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Registration Protocol Failed');
+      const message = err.response?.data?.message || 'Registration Protocol Failed';
+      toast.error(message, {
+        duration: 5000,
+        style: {
+          border: '2px solid #0f172a',
+          padding: '16px',
+          color: '#0f172a',
+          fontWeight: '900',
+          textTransform: 'uppercase',
+          fontSize: '10px',
+          borderRadius: '0'
+        }
+      });
     } finally {
       setLoading(false);
     }
@@ -137,11 +219,15 @@ const LabourRegistration = () => {
               </div>
               <div className="space-y-2">
                 <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Gender Classification</label>
-                <select name="gender" className="input-industrial appearance-none" value={formData.gender} onChange={handleInputChange}>
-                  <option value="MALE">MALE</option>
-                  <option value="FEMALE">FEMALE</option>
-                  <option value="OTHER">OTHER / NON-BINARY</option>
-                </select>
+                <IndustrialSelect 
+                   value={formData.gender} 
+                   onChange={(val) => setFormData({...formData, gender: val})}
+                   options={[
+                     { value: 'MALE', label: 'MALE' },
+                     { value: 'FEMALE', label: 'FEMALE' },
+                     { value: 'OTHER', label: 'OTHER' }
+                   ]}
+                />
               </div>
             </div>
           )}
@@ -165,28 +251,53 @@ const LabourRegistration = () => {
 
           {step === 3 && (
             <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-300">
-              <div className="space-y-2">
-                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Skill Matrix (Required - Comma Separated)</label>
-                <input required type="text" name="skills" className="input-industrial" placeholder="MASONRY, PLUMBING, WELDING..." value={formData.skills} onChange={handleInputChange} />
-                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Input technical specializations for deployment filtering.</p>
-              </div>
-              
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4">
-                {['MASONRY', 'WELDING', 'ELECTRICAL', 'PLUMBING', 'CARPENTRY', 'RIGGING'].map(s => (
-                  <button 
-                    key={s} 
-                    type="button"
-                    onClick={() => {
-                      const current = formData.skills ? formData.skills.split(',').map(x => x.trim()) : [];
-                      if (!current.includes(s)) {
-                        setFormData(prev => ({ ...prev, skills: current.concat(s).join(', ') }));
-                      }
-                    }}
-                    className="p-3 border-2 border-slate-100 text-[10px] font-black text-slate-500 hover:border-slate-900 hover:text-slate-900 transition-all uppercase"
-                  >
-                    + {s}
-                  </button>
-                ))}
+              <div className="space-y-4">
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest border-b-2 border-slate-100 pb-2">
+                  Technical Skill Matrix
+                </label>
+                
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                  {skills.length > 0 ? skills.map(s => {
+                    const isSelected = formData.skills.includes(s.name);
+                    return (
+                      <button 
+                        key={s._id} 
+                        type="button"
+                        onClick={() => toggleSkill(s.name)}
+                        className={`p-4 border-2 transition-all flex items-center justify-between group ${
+                          isSelected 
+                            ? 'bg-slate-900 border-slate-900 text-white shadow-[4px_4px_0px_0px_rgba(234,88,12,1)]' 
+                            : 'bg-white border-slate-200 text-slate-400 hover:border-slate-900 hover:text-slate-900'
+                        }`}
+                      >
+                        <span className="text-[10px] font-black uppercase tracking-widest">{s.name}</span>
+                        {isSelected ? <Check size={14} strokeWidth={4} /> : <Plus size={14} className="group-hover:text-orange-500" />}
+                      </button>
+                    );
+                  }) : (
+                    <p className="col-span-3 text-center text-[10px] font-black text-slate-300 uppercase py-10">Initializing Skills database...</p>
+                  )}
+                </div>
+
+                {formData.skills.length > 0 && (
+                  <div className="mt-6 p-4 bg-slate-50 border-2 border-slate-100">
+                    <p className="text-[9px] font-black text-slate-400 uppercase mb-3 tracking-widest">Selected Specializations:</p>
+                    <div className="flex flex-wrap gap-2">
+                      {formData.skills.map(s => (
+                        <span key={s} className="px-3 py-1 bg-white border-2 border-slate-900 text-[9px] font-black uppercase">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {formData.skills.length === 0 && (
+                  <div className="p-4 bg-red-50 border-2 border-red-100 flex items-center space-x-3">
+                    <div className="w-1.5 h-1.5 bg-red-600 rounded-full animate-pulse"></div>
+                    <p className="text-[9px] font-black text-red-600 uppercase">Warning: At least one skill must be verified for registration.</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -227,7 +338,7 @@ const LabourRegistration = () => {
             {step < 4 ? (
               <button 
                 type="button" 
-                onClick={() => setStep(prev => prev + 1)}
+                onClick={nextStep}
                 className="flex items-center space-x-2 px-8 py-4 bg-slate-900 text-white text-xs font-black uppercase tracking-widest btn-industrial-shadow"
               >
                 <span>Next Phase</span>

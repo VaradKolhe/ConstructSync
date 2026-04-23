@@ -1,0 +1,17 @@
+node_modules
+npm-debug.log
+.git
+.gitignore
+.env
+tests
+documents
+*.md
+Dockerfile*
+docker-compose*
+frontend/dist
+backend/attendance-service/node_modules
+backend/auth-service/node_modules
+backend/deployment-service/node_modules
+backend/gateway/node_modules
+backend/labour-service/node_modules
+backend/reporting-service/node_modules

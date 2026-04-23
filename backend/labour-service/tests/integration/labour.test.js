@@ -4,6 +4,7 @@ const { MongoMemoryServer } = require('mongodb-memory-server');
 const jwt = require('jsonwebtoken');
 const app = require('../../src/app');
 const Labour = require('../../src/models/Labour');
+const ReferenceData = require('../../src/models/ReferenceData');
 
 let mongoServer;
 let adminToken;
@@ -24,6 +25,12 @@ beforeAll(async () => {
     process.env.JWT_SECRET,
     { expiresIn: '1h' }
   );
+
+  // Seed Reference Data for skill validation
+  await ReferenceData.create([
+    { name: 'Plumbing', type: 'SKILL_TYPE', code: 'SKL_PLUMB' },
+    { name: 'Electrical', type: 'SKILL_TYPE', code: 'SKL_ELEC' }
+  ]);
 });
 
 afterAll(async () => {
@@ -46,7 +53,13 @@ describe('Labour Service Integration Tests (SRS Compliant)', () => {
         emergencyContact: '1122334455',
         address: '456 Construction Rd',
         skills: ['Plumbing'],
-        aadhaarNumber: '5555-4444-3333'
+        aadhaarNumber: '5555-4444-3333',
+        bankDetails: {
+          accountHolder: 'JANE DOE',
+          accountNumber: '112233',
+          bankName: 'B1',
+          ifscCode: 'I1'
+        }
       });
 
     expect(res.statusCode).toBe(201);
@@ -65,8 +78,14 @@ describe('Labour Service Integration Tests (SRS Compliant)', () => {
         phone: '111',
         emergencyContact: '222',
         address: 'Addr',
-        skills: ['S1'],
-        aadhaarNumber: '5555-4444-3333' // Duplicate
+        skills: ['Plumbing'],
+        aadhaarNumber: '5555-4444-3333', // Duplicate
+        bankDetails: {
+          accountHolder: 'AJ',
+          accountNumber: '445566',
+          bankName: 'B2',
+          ifscCode: 'I2'
+        }
       });
 
     expect(res.statusCode).toBe(400);
@@ -83,13 +102,13 @@ describe('Labour Service Integration Tests (SRS Compliant)', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body.data.editHistory.length).toBeGreaterThan(0);
-    expect(res.body.data.editHistory[0].editorName).toBe('Admin User');
+    expect(res.body.data.editHistory[0].editorName).toBe('Admin User (ADMIN)');
   });
 
   it('Step 4: Soft delete and verify invisibility in lists (FR-1.7)', async () => {
     // Verify it exists in list first
     const listBefore = await request(app)
-      .get('/api/labours')
+      .get('/api/labours?includeInactive=false')
       .set('Authorization', `Bearer ${adminToken}`);
     expect(listBefore.body.data.labours.some(l => l._id === labourObjectId)).toBe(true);
 
@@ -101,7 +120,7 @@ describe('Labour Service Integration Tests (SRS Compliant)', () => {
 
     // Verify it's gone from list
     const listAfter = await request(app)
-      .get('/api/labours')
+      .get('/api/labours?includeInactive=false')
       .set('Authorization', `Bearer ${adminToken}`);
     expect(listAfter.body.data.labours.some(l => l._id === labourObjectId)).toBe(false);
 

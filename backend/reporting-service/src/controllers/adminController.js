@@ -1,4 +1,4 @@
-const { Labour, Deployment, Attendance, User, SystemAuditLog } = require('../models/MinimalModels');
+const { Labour, Deployment, Attendance, User, SystemAuditLog, Site, SystemSetting } = require('../models/MinimalModels');
 const ApiResponse = require('../../../common/utils/apiResponse');
 
 /**
@@ -7,6 +7,7 @@ const ApiResponse = require('../../../common/utils/apiResponse');
 exports.getDashboardKPIs = async (req, res, next) => {
   try {
     const role = req.user.role;
+    const userId = req.user.id;
     const data = {};
 
     // 1. Common KPIs (Total Labour & Active Deployments)
@@ -48,8 +49,8 @@ exports.getDashboardKPIs = async (req, res, next) => {
     // 3. HR Role Specific Data
     if (role === 'HR') {
       // Skill distribution for HR
-      const masonryCount = await Labour.countDocuments({ isActive: true, skills: 'MASON' });
-      const helperCount = await Labour.countDocuments({ isActive: true, skills: 'HELPER' });
+      const masonryCount = await Labour.countDocuments({ isActive: true, skills: 'Masonry' });
+      const helperCount = await Labour.countDocuments({ isActive: true, skills: 'General Labour' });
       
       data.workforceStats = {
         masonry: masonryCount,
@@ -66,8 +67,8 @@ exports.getDashboardKPIs = async (req, res, next) => {
 
     // 4. SUPERVISOR Role Specific Data
     if (role === 'SUPERVISOR') {
-      // Find one site the supervisor might be assigned to (mocking site assignment for now)
-      const site = await Site.findOne();
+      // Find the site assigned to THIS supervisor
+      const site = await Site.findOne({ supervisorId: userId });
       if (site) {
         data.assignedSite = {
           name: site.name,
@@ -80,20 +81,32 @@ exports.getDashboardKPIs = async (req, res, next) => {
 
     return ApiResponse.success(res, 'Dashboard KPIs fetched', data);
   } catch (error) {
+    console.error("Dashboard KPI Error:", error);
     next(error);
   }
 };
 
 /**
- * Get System Audit Logs (FR-6.3)
+ * Get System Audit Logs (Enhanced Search) (FR-6.3)
  */
 exports.getSystemAuditLogs = async (req, res, next) => {
   try {
-    const { user, actionType, startDate, endDate, page = 1, limit = 50 } = req.query;
+    const { user, actionType, module, search, startDate, endDate, page = 1, limit = 50 } = req.query;
 
     const query = {};
     if (user) query.userId = user;
     if (actionType) query.action = actionType;
+    if (module) query.module = module;
+    
+    if (search) {
+      query.$or = [
+        { action: { $regex: search, $options: 'i' } },
+        { module: { $regex: search, $options: 'i' } },
+        { 'details.name': { $regex: search, $options: 'i' } },
+        { 'details.labourId': { $regex: search, $options: 'i' } }
+      ];
+    }
+
     if (startDate || endDate) {
       query.timestamp = {};
       if (startDate) query.timestamp.$gte = new Date(startDate);
@@ -113,6 +126,42 @@ exports.getSystemAuditLogs = async (req, res, next) => {
       page: parseInt(page),
       pages: Math.ceil(total / limit)
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get Global System Settings
+ */
+exports.getSystemSettings = async (req, res, next) => {
+  try {
+    const settings = await SystemSetting.find();
+    return ApiResponse.success(res, 'System settings fetched', settings);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Update Global System Setting
+ */
+exports.updateSystemSetting = async (req, res, next) => {
+  try {
+    const { key, value, description } = req.body;
+    
+    const setting = await SystemSetting.findOneAndUpdate(
+      { key },
+      { 
+        value, 
+        description, 
+        updatedBy: req.user.id, 
+        lastUpdated: new Date() 
+      },
+      { upsert: true, new: true }
+    );
+
+    return ApiResponse.success(res, `Setting ${key} updated successfully`, setting);
   } catch (error) {
     next(error);
   }

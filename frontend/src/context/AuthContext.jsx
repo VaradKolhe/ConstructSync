@@ -11,7 +11,8 @@ export const AuthProvider = ({ children }) => {
   const checkAuth = async () => {
     try {
       const response = await api.get('/auth/profile');
-      setUser(response.data.data);
+      const userData = response.data.data;
+      setUser(userData ? { ...userData, id: userData._id } : null);
     } catch (err) {
       setUser(null);
     } finally {
@@ -28,8 +29,9 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await api.post('/auth/login', { email, password, rememberMe });
       const userData = response.data.data;
-      setUser(userData);
-      return userData;
+      const userWithId = { ...userData, id: userData._id };
+      setUser(userWithId);
+      return userWithId;
     } catch (err) {
       const message = err.response?.data?.message || 'Login failed. Please try again.';
       setError(message);

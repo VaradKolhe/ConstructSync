@@ -29,7 +29,13 @@ describe('Labour Model Unit Tests (SRS Compliant)', () => {
       emergencyContact: '1234567890',
       address: '123 Construction St',
       skills: ['Masonry'],
-      aadhaarNumber: '1234-5678-9012'
+      aadhaarNumber: '1234-5678-9012',
+      bankDetails: {
+        accountHolder: 'JOHN DOE',
+        accountNumber: '1234567890',
+        bankName: 'HDFC BANK',
+        ifscCode: 'HDFC0001234'
+      }
     };
     const labour = await Labour.create(labourData);
     expect(labour.labourId).toMatch(/^LBR-\d{8}-\d{4}$/);
@@ -60,7 +66,13 @@ describe('Labour Model Unit Tests (SRS Compliant)', () => {
       emergencyContact: '000',
       address: 'Addr',
       skills: ['S1'],
-      aadhaarNumber: commonAadhaar
+      aadhaarNumber: commonAadhaar,
+      bankDetails: {
+        accountHolder: 'USER 1',
+        accountNumber: '1',
+        bankName: 'B1',
+        ifscCode: 'I1'
+      }
     });
     
     let err;
@@ -73,7 +85,13 @@ describe('Labour Model Unit Tests (SRS Compliant)', () => {
         emergencyContact: '000',
         address: 'Addr',
         skills: ['S2'],
-        aadhaarNumber: commonAadhaar
+        aadhaarNumber: commonAadhaar,
+        bankDetails: {
+          accountHolder: 'USER 2',
+          accountNumber: '2',
+          bankName: 'B2',
+          ifscCode: 'I2'
+        }
       });
     } catch (error) {
       err = error;

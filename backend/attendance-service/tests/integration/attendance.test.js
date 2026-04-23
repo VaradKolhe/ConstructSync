@@ -2,6 +2,9 @@ const request = require('supertest');
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const jwt = require('jsonwebtoken');
+
+// Set global instance for middleware BEFORE requiring app
+global.mongooseInstance = mongoose;
 const app = require('../../src/app');
 const Attendance = require('../../src/models/Attendance');
 
@@ -26,6 +29,22 @@ beforeAll(async () => {
     process.env.JWT_SECRET,
     { expiresIn: '1h' }
   );
+
+  // Create the user in memory DB to satisfy protect middleware
+  const User = mongoose.models.User || mongoose.model('User', new mongoose.Schema({
+    email: String,
+    role: String,
+    isActive: Boolean,
+    refreshToken: String
+  }, { collection: 'users' }));
+
+  await User.create({
+    _id: supervisorId,
+    email: 'supervisor@test.com',
+    role: 'SUPERVISOR',
+    isActive: true,
+    refreshToken: 'mock-refresh-token'
+  });
 });
 
 afterAll(async () => {
@@ -195,11 +214,21 @@ describe('Attendance Service Integration Tests', () => {
     });
 
     it('should allow admin to edit attendance for a past day', async () => {
+      const adminId = new mongoose.Types.ObjectId();
       const adminToken = jwt.sign(
-        { id: new mongoose.Types.ObjectId(), role: 'ADMIN' },
+        { id: adminId, role: 'ADMIN' },
         process.env.JWT_SECRET,
         { expiresIn: '1h' }
       );
+
+      // Create the admin user in memory DB
+      await mongoose.model('User').create({
+        _id: adminId,
+        email: 'admin@test.com',
+        role: 'ADMIN',
+        isActive: true,
+        refreshToken: 'mock-refresh-token'
+      });
 
       // Create another past record
       const pastDate = new Date();

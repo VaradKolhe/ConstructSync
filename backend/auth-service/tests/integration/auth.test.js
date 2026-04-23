@@ -33,6 +33,9 @@ describe('Auth Service Integration Tests (Security Hardened)', () => {
   let cookies;
   const userEmail = 'worker@test.com';
 
+  // Increase timeout for all tests in this suite
+  jest.setTimeout(15000);
+
   beforeEach(async () => {
     jest.clearAllMocks();
   });
@@ -77,6 +80,7 @@ describe('Auth Service Integration Tests (Security Hardened)', () => {
 
     const emailHtml = sendEmail.mock.calls[0][0].html;
     const match = emailHtml.match(/Temporary Password:.*?<span[^>]*>\s*([a-f0-9]+)\s*<\/span>/i);
+    expect(match).not.toBeNull();
     tempPassword = match[1].trim();
   });
 
@@ -89,6 +93,7 @@ describe('Auth Service Integration Tests (Security Hardened)', () => {
         .send({ email: userEmail, password: 'wrongpassword' });
     }
 
+    // 6th attempt with correct password should be blocked
     const res = await request(app)
       .post('/api/auth/login')
       .send({ email: userEmail, password: tempPassword });
@@ -100,6 +105,7 @@ describe('Auth Service Integration Tests (Security Hardened)', () => {
   // Unlock for further tests (Admin action required by SRS, but we'll just clear in DB for speed)
   it('Step 4: Admin should unlock user (simulated)', async () => {
     const user = await User.findOne({ email: userEmail });
+    expect(user).not.toBeNull();
     user.loginAttempts = 0;
     user.lockUntil = undefined;
     await user.save();

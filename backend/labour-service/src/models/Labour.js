@@ -101,4 +101,4 @@ labourSchema.pre('save', async function () {
   }
 });
 
-module.exports = mongoose.model('Labour', labourSchema);
+module.exports = mongoose.model('Labour', labourSchema, 'labours');

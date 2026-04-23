@@ -66,7 +66,7 @@ const getAggregatedData = async (filters) => {
 
   // Skill Type filter
   if (skillType) {
-    pipeline.push({ $match: { 'labourDetails.skillType': skillType } });
+    pipeline.push({ $match: { 'labourDetails.skills': skillType } });
   }
 
   pipeline.push(
@@ -84,7 +84,7 @@ const getAggregatedData = async (filters) => {
         _id: '$labourId',
         labourIdStr: { $first: '$labourDetails.labourId' },
         name: { $first: '$labourDetails.name' },
-        skillType: { $first: '$labourDetails.skillType' },
+        skills: { $first: '$labourDetails.skills' },
         siteName: { $first: '$siteDetails.name' },
         totalPresent: { $sum: { $cond: [{ $eq: ['$status', 'PRESENT'] }, 1, 0] } },
         totalHalfDay: { $sum: { $cond: [{ $eq: ['$status', 'HALF-DAY'] }, 1, 0] } },
@@ -97,7 +97,7 @@ const getAggregatedData = async (filters) => {
       $project: {
         labourId: '$labourIdStr',
         name: 1,
-        skillType: 1,
+        skills: 1,
         siteName: 1,
         totalPresent: 1,
         totalHalfDay: 1,
@@ -133,13 +133,17 @@ exports.exportPayrollExcel = async (req, res, next) => {
     }
 
     const data = await getAggregatedData(req.query);
+    if (!data || data.length === 0) {
+      return ApiResponse.error(res, 'No data detected for the requested boundary. Export aborted.', 404);
+    }
+
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet('Payroll');
 
     worksheet.columns = [
       { header: 'Labour ID', key: 'labourId', width: 20 },
       { header: 'Name', key: 'name', width: 25 },
-      { header: 'Skill Type', key: 'skillType', width: 15 },
+      { header: 'Skills', key: 'skills', width: 20 },
       { header: 'Site', key: 'siteName', width: 20 },
       { header: 'Present Days', key: 'totalPresent', width: 15 },
       { header: 'Half Days', key: 'totalHalfDay', width: 15 },
@@ -149,7 +153,12 @@ exports.exportPayrollExcel = async (req, res, next) => {
       { header: 'Avg Hours', key: 'averageDailyHours', width: 15 },
     ];
 
-    data.forEach((row) => worksheet.addRow(row));
+    data.forEach(item => {
+      worksheet.addRow({
+        ...item,
+        skills: Array.isArray(item.skills) ? item.skills.join(', ') : item.skills
+      });
+    });
 
     const buffer = await workbook.xlsx.writeBuffer();
 
@@ -186,6 +195,10 @@ exports.exportPdfReport = async (req, res, next) => {
     }
 
     const data = await getAggregatedData(req.query);
+    if (!data || data.length === 0) {
+      return ApiResponse.error(res, 'No data detected for the requested boundary. Export aborted.', 404);
+    }
+
     const doc = new PDFDocument({ margin: 30 });
     let buffers = [];
     doc.on('data', buffers.push.bind(buffers));

@@ -16,6 +16,15 @@ const siteSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       required: true,
     },
+    status: {
+      type: String,
+      enum: ['PLANNED', 'ACTIVE', 'COMPLETED', 'DECOMMISSIONED'],
+      default: 'ACTIVE',
+    },
+    isLocked: {
+      type: Boolean,
+      default: false,
+    },
   },
   { timestamps: true }
 );
