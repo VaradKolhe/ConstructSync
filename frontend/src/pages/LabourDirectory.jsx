@@ -20,10 +20,12 @@ import {
   Activity,
   RefreshCcw,
   Eye,
-  EyeOff
+  EyeOff,
+  Clock
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router-dom';
+import IndustrialSelect from '../components/common/IndustrialSelect';
 
 const LabourDirectory = () => {
   const [labours, setLabours] = useState([]);
@@ -36,9 +38,33 @@ const LabourDirectory = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [skillFilter, setSkillFilter] = useState('');
+  const [skills, setSkills] = useState([]);
   const [editData, setEditData] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [activeDeployment, setActiveDeployment] = useState(null);
+  const [isFetchingDeployment, setIsFetchingDeployment] = useState(false);
   const navigate = useNavigate();
+
+  const fetchDeployment = async (labourId) => {
+    setIsFetchingDeployment(true);
+    try {
+      const response = await api.get(`/deployments/labour/${labourId}`);
+      setActiveDeployment(response.data.data);
+    } catch (err) {
+      console.error('Failed to fetch deployment details');
+      setActiveDeployment(null);
+    } finally {
+      setIsFetchingDeployment(false);
+    }
+  };
+
+  useEffect(() => {
+    if (selectedLabour && selectedLabour.status === 'ASSIGNED') {
+      fetchDeployment(selectedLabour._id);
+    } else {
+      setActiveDeployment(null);
+    }
+  }, [selectedLabour]);
 
   const fetchLabours = async () => {
     setLoading(true);
@@ -60,6 +86,19 @@ const LabourDirectory = () => {
     }
   };
 
+  const fetchSkills = async () => {
+    try {
+      const response = await api.get('/labours/reference-data?type=SKILL_TYPE');
+      setSkills(response.data.data);
+    } catch (err) {
+      console.error('Failed to fetch skills');
+    }
+  };
+
+  useEffect(() => {
+    fetchSkills();
+  }, []);
+
   useEffect(() => {
     const timer = setTimeout(() => {
       fetchLabours();
@@ -69,19 +108,29 @@ const LabourDirectory = () => {
 
   const openProfile = (labour) => {
     setSelectedLabour(labour);
-    setEditData({ ...labour, skills: labour.skills.join(', ') });
+    setEditData({ ...labour });
     setShowProfile(true);
     setIsEditing(false);
     setShowHistory(false);
     setShowFullAadhaar(false);
   };
 
+  useEffect(() => {
+    if (isEditing && selectedLabour) {
+      setEditData(JSON.parse(JSON.stringify(selectedLabour)));
+    }
+  }, [isEditing, selectedLabour]);
+
   const handleUpdate = async (e) => {
     e.preventDefault();
+    if (!editData.skills || editData.skills.length === 0) {
+      toast.error('Skill Matrix Error: At least one specialization required');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const skillsArray = editData.skills.split(',').map(s => s.trim()).filter(s => s !== '');
-      await api.put(`/labours/${selectedLabour._id}`, { ...editData, skills: skillsArray });
+      await api.put(`/labours/${selectedLabour._id}`, editData);
       toast.success('Personnel Record Updated & Audited');
       setIsEditing(false);
       fetchLabours();
@@ -89,6 +138,15 @@ const LabourDirectory = () => {
       toast.error(err.response?.data?.message || 'Update Protocol Failed');
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const toggleEditSkill = (skillName) => {
+    const currentSkills = [...(editData.skills || [])];
+    if (currentSkills.includes(skillName)) {
+      setEditData({ ...editData, skills: currentSkills.filter(s => s !== skillName) });
+    } else {
+      setEditData({ ...editData, skills: [...currentSkills, skillName] });
     }
   };
 
@@ -148,34 +206,30 @@ const LabourDirectory = () => {
           />
         </div>
         
-        <div className="flex gap-4">
-          <select 
+        <div className="flex gap-4 min-w-[500px]">
+          <IndustrialSelect 
+            className="w-48"
+            placeholder="ALL STATUSES"
+            options={[
+              { value: 'AVAILABLE', label: 'AVAILABLE' },
+              { value: 'ON-SITE', label: 'ON-SITE' },
+              { value: 'ON-LEAVE', label: 'ON-LEAVE' }
+            ]}
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-6 py-4 border-2 border-slate-900 bg-white text-xs font-black uppercase tracking-widest focus:outline-none appearance-none cursor-pointer"
-          >
-            <option value="">ALL STATUSES</option>
-            <option value="AVAILABLE">AVAILABLE</option>
-            <option value="ON-SITE">ON-SITE</option>
-            <option value="ON-LEAVE">ON-LEAVE</option>
-          </select>
+            onChange={(val) => setStatusFilter(val)}
+          />
 
-          <select 
+          <IndustrialSelect 
+            className="flex-grow"
+            placeholder="ALL SKILLS"
+            options={skills.map(s => ({ value: s.name, label: s.name.toUpperCase() }))}
             value={skillFilter}
-            onChange={(e) => setSkillFilter(e.target.value)}
-            className="px-6 py-4 border-2 border-slate-900 bg-white text-xs font-black uppercase tracking-widest focus:outline-none appearance-none cursor-pointer"
-          >
-            <option value="">ALL SKILLS</option>
-            <option value="MASON">MASON</option>
-            <option value="CARPENTER">CARPENTER</option>
-            <option value="ELECTRICIAN">ELECTRICIAN</option>
-            <option value="PLUMBER">PLUMBER</option>
-            <option value="HELPER">HELPER</option>
-          </select>
+            onChange={(val) => setSkillFilter(val)}
+          />
 
           <button 
             onClick={() => { setSearch(''); setStatusFilter(''); setSkillFilter(''); }}
-            className="flex items-center justify-center space-x-2 px-6 py-4 border-2 border-slate-900 bg-slate-900 text-white text-xs font-black uppercase tracking-widest hover:bg-slate-800"
+            className="flex items-center justify-center space-x-2 px-6 h-12 border-2 border-slate-900 bg-slate-900 text-white text-xs font-black uppercase tracking-widest hover:bg-slate-800 transition-colors"
           >
             <RefreshCcw size={16} />
             <span>Reset</span>
@@ -375,14 +429,30 @@ const LabourDirectory = () => {
                         onChange={e => setEditData({...editData, phone: e.target.value})}
                       />
                     </div>
-                    <div className="space-y-2 md:col-span-2">
-                      <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest">Skill Matrix</label>
-                      <input 
-                        type="text" 
-                        className="input-industrial h-10 py-0" 
-                        value={editData.skills} 
-                        onChange={e => setEditData({...editData, skills: e.target.value})}
-                      />
+                    <div className="space-y-4 md:col-span-2">
+                      <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest border-b border-slate-100 pb-1">Verified Skill Matrix</label>
+                      <div className="flex flex-wrap gap-2">
+                        {skills.map(s => {
+                          const isSelected = (editData.skills || []).includes(s.name);
+                          return (
+                            <button
+                              key={s._id}
+                              type="button"
+                              onClick={() => toggleEditSkill(s.name)}
+                              className={`px-3 py-2 border-2 transition-all text-[9px] font-black uppercase tracking-widest ${
+                                isSelected 
+                                  ? 'bg-slate-900 border-slate-900 text-white shadow-[2px_2px_0px_0px_rgba(234,88,12,1)]' 
+                                  : 'bg-white border-slate-200 text-slate-400 hover:border-slate-900 hover:text-slate-900'
+                              }`}
+                            >
+                              {s.name}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {(editData.skills || []).length === 0 && (
+                        <p className="text-[8px] font-black text-red-500 uppercase italic">Verification Error: Personnel must possess at least one skill.</p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest">Account Number</label>
@@ -500,16 +570,60 @@ const LabourDirectory = () => {
                       <h3 className="text-[11px] font-black uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-2 flex items-center">
                         <Activity className="h-4 w-4 mr-2" /> Deployment Lifecycle
                       </h3>
-                      <div className="p-4 border-2 border-slate-900 flex justify-between items-center">
-                        <div>
-                          <p className="text-[9px] font-black text-slate-400 uppercase">Current Status</p>
-                          <p className={`text-xs font-black uppercase ${!selectedLabour.isActive ? 'text-slate-400' : selectedLabour.status === 'AVAILABLE' ? 'text-emerald-600' : 'text-orange-600'}`}>
-                            {selectedLabour.isActive ? selectedLabour.status : 'DEREGISTERED'}
-                          </p>
+                      
+                      <div className="space-y-4">
+                        <div className="p-4 border-2 border-slate-900 flex justify-between items-center">
+                          <div>
+                            <p className="text-[9px] font-black text-slate-400 uppercase">Current Status</p>
+                            <p className={`text-xs font-black uppercase ${!selectedLabour.isActive ? 'text-slate-400' : selectedLabour.status === 'AVAILABLE' ? 'text-emerald-600' : 'text-orange-600'}`}>
+                              {selectedLabour.isActive ? selectedLabour.status : 'DEREGISTERED'}
+                            </p>
+                          </div>
+                          <button 
+                            onClick={() => { setShowHistory(true); setIsEditing(false); }}
+                            className="px-4 py-2 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest btn-industrial-shadow"
+                          >
+                            View History
+                          </button>
                         </div>
-                        <button className="px-4 py-2 bg-slate-900 text-white text-[9px] font-black uppercase tracking-widest btn-industrial-shadow">
-                          View History
-                        </button>
+
+                        {isFetchingDeployment ? (
+                          <div className="p-4 bg-slate-50 border-2 border-slate-100 flex items-center justify-center">
+                            <Loader2 className="h-4 w-4 animate-spin text-slate-400 mr-2" />
+                            <span className="text-[9px] font-black text-slate-400 uppercase">Retrieving deployment data...</span>
+                          </div>
+                        ) : activeDeployment ? (
+                          <div className="p-4 bg-orange-50 border-2 border-orange-200 space-y-3 relative overflow-hidden">
+                            <div className="absolute -right-2 -top-2 opacity-10">
+                              <HardHat size={60} className="text-orange-600" />
+                            </div>
+                            <p className="text-[9px] font-black text-orange-600 uppercase tracking-widest">Active Deployment Details</p>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <p className="text-[8px] font-black text-slate-400 uppercase">Deployed Site</p>
+                                <p className="text-xs font-black text-slate-900 uppercase">{activeDeployment.siteName || 'N/A'}</p>
+                              </div>
+                              <div>
+                                <p className="text-[8px] font-black text-slate-400 uppercase">Operational Role</p>
+                                <p className="text-xs font-black text-slate-900 uppercase">{activeDeployment.role || 'N/A'}</p>
+                              </div>
+                              <div>
+                                <p className="text-[8px] font-black text-slate-400 uppercase">Commencement</p>
+                                <p className="text-xs font-black text-slate-900 uppercase">{new Date(activeDeployment.startDate).toLocaleDateString()}</p>
+                              </div>
+                              {activeDeployment.groupName && (
+                                <div>
+                                  <p className="text-[8px] font-black text-slate-400 uppercase">Assigned Group</p>
+                                  <p className="text-xs font-black text-orange-700 uppercase">{activeDeployment.groupName}</p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : selectedLabour.status === 'ASSIGNED' && (
+                          <div className="p-4 bg-slate-50 border-2 border-slate-100 italic text-[10px] text-slate-400 font-bold uppercase">
+                            Operational data retrieval pending or unavailable
+                          </div>
+                        )}
                       </div>
                     </section>
                   </div>

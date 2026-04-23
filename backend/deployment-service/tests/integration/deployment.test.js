@@ -2,7 +2,11 @@ const request = require('supertest');
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
 const jwt = require('jsonwebtoken');
+
+// Set global instance for middleware BEFORE requiring app
+global.mongooseInstance = mongoose;
 const app = require('../../src/app');
+
 const Site = require('../../src/models/Site');
 const Deployment = require('../../src/models/Deployment');
 
@@ -27,6 +31,16 @@ beforeAll(async () => {
     process.env.JWT_SECRET,
     { expiresIn: '1h' }
   );
+
+  // Create the user in memory DB to satisfy protect middleware
+  // The User model is already registered in UserMinimal.js via common
+  await mongoose.model('User').create({
+    _id: adminId,
+    email: 'admin@test.com',
+    role: 'ADMIN',
+    isActive: true,
+    refreshToken: 'mock-refresh-token'
+  });
 });
 
 afterAll(async () => {

@@ -1,28 +1,42 @@
-import React from 'react';
-import { NavLink } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import { HardHat, LayoutDashboard, Users, Clock, Map, BarChart3, ShieldCheck } from 'lucide-react';
-import UserProfileDropdown from '../navigation/UserProfileDropdown';
+import React from "react";
+import { NavLink } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import {
+  HardHat,
+  LayoutDashboard,
+  Users,
+  Clock,
+  Map,
+  BarChart3,
+  ShieldCheck,
+  Settings
+} from "lucide-react";
+import UserProfileDropdown from "../navigation/UserProfileDropdown";
 
 const Header = () => {
   const { user } = useAuth();
 
   const roleBasedLinks = {
     ADMIN: [
-      { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { to: '/users', label: 'User Mgmt', icon: ShieldCheck },
-      { to: '/analytics', label: 'System Analytics', icon: BarChart3 },
+      { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { to: "/users", label: "User Mgmt", icon: ShieldCheck },
+      { to: "/sites", label: "Site Mgmt", icon: Map },
+      { to: "/deployments", label: "Deployments", icon: HardHat },
+      { to: "/reporting", label: "Reporting & Payroll", icon: BarChart3 },
+      { to: "/settings", label: "System Control", icon: Settings },
+      { to: "/analytics", label: "Security Logs", icon: ShieldCheck },
     ],
     HR: [
-      { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { to: '/labour', label: 'Labour Directory', icon: Users },
-      { to: '/payroll', label: 'Payroll Ready', icon: BarChart3 },
+      { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { to: "/labour", label: "Labour Directory", icon: Users },
+      { to: "/deployments", label: "Workforce Deploy", icon: HardHat },
+      { to: "/reporting", label: "Payroll & Reporting", icon: BarChart3 },
     ],
     SUPERVISOR: [
-      { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { to: '/attendance', label: 'Attendance', icon: Clock },
-      { to: '/sites', label: 'Active Sites', icon: Map },
-    ]
+      { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+      { to: "/attendance", label: "Attendance Terminal", icon: Clock },
+      { to: "/deployments", label: "My Deployments", icon: Map },
+    ],
   };
 
   const links = user ? roleBasedLinks[user.role] || [] : [];
@@ -48,9 +62,11 @@ const Header = () => {
                 to={link.to}
                 className={({ isActive }) => `
                   flex items-center space-x-2 px-4 py-2 text-[10px] font-black uppercase tracking-widest transition-all
-                  ${isActive 
-                    ? 'text-orange-600 border-b-2 border-orange-600 bg-orange-50' 
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}
+                  ${
+                    isActive
+                      ? "text-orange-600 border-b-2 border-orange-600 bg-orange-50"
+                      : "text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                  }
                 `}
               >
                 <link.icon className="h-3.5 w-3.5" />

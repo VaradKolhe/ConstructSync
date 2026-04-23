@@ -10,8 +10,8 @@ const { logAudit } = require('../../../common/utils/auditLogger');
  */
 exports.createSite = async (req, res, next) => {
   try {
-    const { name, location, supervisorId } = req.body;
-    const site = await Site.create({ name, location, supervisorId });
+    const { name, location, supervisorId, status } = req.body;
+    const site = await Site.create({ name, location, supervisorId, status });
     
     await logAudit(mongoose, {
       userId: req.user.id,
@@ -32,13 +32,14 @@ exports.createSite = async (req, res, next) => {
  */
 exports.updateSite = async (req, res, next) => {
   try {
-    const { name, location, supervisorId } = req.body;
+    const { name, location, supervisorId, status } = req.body;
     const site = await Site.findById(req.params.id);
     if (!site) return ApiResponse.error(res, 'Site not found', 404);
 
     if (name) site.name = name;
     if (location) site.location = location;
     if (supervisorId) site.supervisorId = supervisorId;
+    if (status) site.status = status;
 
     await site.save();
 
@@ -61,8 +62,22 @@ exports.updateSite = async (req, res, next) => {
  */
 exports.deleteSite = async (req, res, next) => {
   try {
-    const site = await Site.findByIdAndDelete(req.params.id);
-    if (!site) return ApiResponse.error(res, 'Site not found', 404);
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return ApiResponse.error(res, 'Invalid Site ID format', 400);
+    }
+
+    // BLOCKER: Check for active deployments before deletion
+    const activeDeployments = await Deployment.countDocuments({ siteId: id, status: 'ACTIVE' });
+    if (activeDeployments > 0) {
+      return ApiResponse.error(res, `SECURITY BLOCK: Site has ${activeDeployments} active personnel deployments. Redeploy all labour before decommissioning.`, 403);
+    }
+
+    const site = await Site.findByIdAndDelete(id);    if (!site) return ApiResponse.error(res, 'Site not found or already deleted', 404);
+
+    // Clean up all deployments associated with this site (active or completed)
+    await Deployment.deleteMany({ siteId: id });
 
     await logAudit(mongoose, {
       userId: req.user.id,
@@ -74,6 +89,7 @@ exports.deleteSite = async (req, res, next) => {
 
     return ApiResponse.success(res, 'Site deleted successfully');
   } catch (error) {
+    console.error('Delete Site Error:', error);
     next(error);
   }
 };
@@ -150,6 +166,18 @@ exports.createGroup = async (req, res, next) => {
 
     const group = await LabourGroup.create({ name, members, createdBy });
     return ApiResponse.success(res, 'Labour Group created successfully', group, 201);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get all Labour Groups
+ */
+exports.getAllGroups = async (req, res, next) => {
+  try {
+    const groups = await LabourGroup.find();
+    return ApiResponse.success(res, 'Labour Groups fetched successfully', groups);
   } catch (error) {
     next(error);
   }
@@ -236,6 +264,37 @@ exports.getSiteDeployments = async (req, res, next) => {
     }));
 
     return ApiResponse.success(res, 'Site deployments fetched', result);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Get active deployment for a specific labourer
+ */
+exports.getLabourDeployment = async (req, res, next) => {
+  try {
+    const deployment = await Deployment.findOne({
+      labourId: req.params.labourId,
+      status: 'ACTIVE',
+    }).lean();
+
+    if (!deployment) {
+      return ApiResponse.success(res, 'No active deployment found', null);
+    }
+
+    const site = await Site.findById(deployment.siteId).lean();
+    if (site) {
+      deployment.siteName = site.name;
+      deployment.siteLocation = site.location;
+    }
+
+    const group = await LabourGroup.findOne({ members: req.params.labourId }).lean();
+    if (group) {
+      deployment.groupName = group.name;
+    }
+
+    return ApiResponse.success(res, 'Active deployment fetched', deployment);
   } catch (error) {
     next(error);
   }

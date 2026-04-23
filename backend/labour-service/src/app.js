@@ -16,8 +16,8 @@ app.use(cookieParser());
 app.use(express.json());
 
 // Routes
-app.use('/api/labours', labourRoutes);
 app.use('/api/labours/reference-data', referenceDataRoutes);
+app.use('/api/labours', labourRoutes);
 
 // Health Check
 app.get('/health', (req, res) => {

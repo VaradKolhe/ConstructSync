@@ -5,6 +5,16 @@ const ApiResponse = require('../../../common/utils/apiResponse');
 const { logAudit } = require('../../../common/utils/auditLogger');
 
 /**
+ * Helper to check if a site is locked
+ */
+const checkSiteLock = async (siteId) => {
+  const site = await mongoose.connection.db.collection('sites').findOne({ 
+    _id: new mongoose.Types.ObjectId(siteId) 
+  });
+  return site && site.isLocked;
+};
+
+/**
  * Mark Attendance (Check-in)
  * @route POST /api/attendances/check-in
  */
@@ -13,11 +23,22 @@ exports.checkIn = async (req, res, next) => {
     const { labourId, siteId, date, status } = req.body;
     const supervisorId = req.user.id;
 
+    // Check if site is locked
+    if (await checkSiteLock(siteId)) {
+      return ApiResponse.error(res, 'SECURITY PROTOCOL: Site access is currently locked by Admin. Attendance terminal disabled.', 403);
+    }
+
     // Use current date if not provided (Format: YYYY-MM-DD for consistency)
     const attendanceDate = date ? new Date(date) : new Date();
     attendanceDate.setUTCHours(0, 0, 0, 0);
 
-    // Check if attendance already exists
+    // BLOCKER: Check for existing ACTIVE session (No check-out yet)
+    const activeSession = await Attendance.findOne({ labourId, checkOutTime: null });
+    if (activeSession) {
+      return ApiResponse.error(res, 'SECURITY ALERT: Personnel is already clocked in at another sector. Finalize previous shift before new initialization.', 400);
+    }
+
+    // Check if attendance already exists for this specific date (Prevent double marking same day)
     const exists = await Attendance.findOne({ labourId, date: attendanceDate });
     if (exists) {
       return ApiResponse.error(res, 'Attendance already marked for this labourer today', 400);
@@ -41,6 +62,121 @@ exports.checkIn = async (req, res, next) => {
     });
 
     return ApiResponse.success(res, 'Check-in successful', attendance, 201);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Bulk Check-in
+ * @route POST /api/attendances/bulk-check-in
+ */
+exports.bulkCheckIn = async (req, res, next) => {
+  try {
+    const { labourIds, siteId, date, status } = req.body;
+    const supervisorId = req.user.id;
+
+    // Check if site is locked
+    if (await checkSiteLock(siteId)) {
+      return ApiResponse.error(res, 'SECURITY PROTOCOL: Site access is currently locked by Admin. Attendance terminal disabled.', 403);
+    }
+
+    if (!labourIds || !Array.isArray(labourIds) || labourIds.length === 0) {
+      return ApiResponse.error(res, 'Invalid Personnel List: No IDs provided', 400);
+    }
+
+    const attendanceDate = date ? new Date(date) : new Date();
+    attendanceDate.setUTCHours(0, 0, 0, 0);
+
+    // Filter out already marked attendance
+    const existing = await Attendance.find({
+      labourId: { $in: labourIds },
+      date: attendanceDate
+    }).select('labourId');
+    
+    const existingIds = existing.map(e => e.labourId.toString());
+    const newLabourIds = labourIds.filter(id => !existingIds.includes(id));
+
+    if (newLabourIds.length === 0) {
+      return ApiResponse.error(res, 'All personnel in the list are already clocked in', 400);
+    }
+
+    const checkInTime = new Date();
+    const records = newLabourIds.map(id => ({
+      labourId: id,
+      siteId,
+      supervisorId,
+      date: attendanceDate,
+      checkInTime,
+      status: status || 'PRESENT'
+    }));
+
+    const result = await Attendance.insertMany(records);
+
+    await logAudit(mongoose, {
+      userId: req.user.id,
+      action: 'ATTENDANCE_BULK_CHECK_IN',
+      module: 'ATTENDANCE',
+      details: { count: result.length, siteId, date: attendanceDate },
+      ipAddress: req.ip
+    });
+
+    return ApiResponse.success(res, `Bulk check-in successful for ${result.length} personnel`, result, 201);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Bulk Check-out
+ * @route PUT /api/attendances/bulk-check-out
+ */
+exports.bulkCheckOut = async (req, res, next) => {
+  try {
+    const { attendanceIds } = req.body;
+    if (!attendanceIds || !Array.isArray(attendanceIds) || attendanceIds.length === 0) {
+      return ApiResponse.error(res, 'Invalid Attendance List: No IDs provided', 400);
+    }
+
+    const records = await Attendance.find({ _id: { $in: attendanceIds }, checkOutTime: null });
+    if (records.length === 0) {
+      return ApiResponse.error(res, 'No active attendance records found for check-out', 404);
+    }
+
+    const checkOutTime = new Date();
+    const bulkOps = records.map(record => {
+      const diffMs = checkOutTime - record.checkInTime;
+      const totalHours = parseFloat((diffMs / (1000 * 60 * 60)).toFixed(2));
+      
+      const update = {
+        checkOutTime,
+        totalHours,
+        isAnomaly: totalHours > 12 || totalHours < 0,
+      };
+      
+      if (update.isAnomaly) {
+        update.anomalyReason = 'System flagged: Bulk check-out resulted in hours out of standard range';
+      }
+
+      return {
+        updateOne: {
+          filter: { _id: record._id },
+          update: { $set: update }
+        }
+      };
+    });
+
+    await Attendance.bulkWrite(bulkOps);
+
+    await logAudit(mongoose, {
+      userId: req.user.id,
+      action: 'ATTENDANCE_BULK_CHECK_OUT',
+      module: 'ATTENDANCE',
+      details: { count: records.length },
+      ipAddress: req.ip
+    });
+
+    return ApiResponse.success(res, `Bulk check-out successful for ${records.length} personnel`);
   } catch (error) {
     next(error);
   }

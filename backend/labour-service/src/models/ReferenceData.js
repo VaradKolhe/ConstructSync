@@ -29,4 +29,4 @@ const referenceDataSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-module.exports = mongoose.model('ReferenceData', referenceDataSchema);
+module.exports = mongoose.model('ReferenceData', referenceDataSchema, 'referencedatas');

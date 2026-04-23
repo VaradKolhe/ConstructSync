@@ -12,6 +12,11 @@ import UserManagement from './pages/UserManagement';
 import LabourDirectory from './pages/LabourDirectory';
 import LabourRegistration from './pages/LabourRegistration';
 import AuditLogs from './pages/AuditLogs';
+import SiteManagement from './pages/SiteManagement';
+import WorkforceDeployment from './pages/WorkforceDeployment';
+import AttendanceTerminal from './pages/AttendanceTerminal';
+import Reporting from './pages/Reporting';
+import SystemSettings from './pages/SystemSettings';
 import { Toaster } from 'react-hot-toast';
 
 const Unauthorized = () => (
@@ -89,7 +94,16 @@ function App() {
               } 
             />
 
-            {/* HR Routes */}
+            <Route 
+              path="/sites" 
+              element={
+                <ProtectedRoute allowedRoles={['ADMIN']}>
+                  <SiteManagement />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* HR / Shared Routes */}
             <Route 
               path="/labour" 
               element={
@@ -104,6 +118,43 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['HR', 'ADMIN']}>
                   <LabourRegistration />
+                </ProtectedRoute>
+              } 
+            />
+
+            <Route 
+              path="/reporting" 
+              element={
+                <ProtectedRoute allowedRoles={['HR', 'ADMIN']}>
+                  <Reporting />
+                </ProtectedRoute>
+              } 
+            />
+
+            <Route 
+              path="/settings" 
+              element={
+                <ProtectedRoute allowedRoles={['ADMIN']}>
+                  <SystemSettings />
+                </ProtectedRoute>
+              } 
+            />
+
+            <Route 
+              path="/deployments" 
+              element={
+                <ProtectedRoute allowedRoles={['HR', 'ADMIN', 'SUPERVISOR']}>
+                  <WorkforceDeployment />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* Supervisor Specific Routes */}
+            <Route 
+              path="/attendance" 
+              element={
+                <ProtectedRoute allowedRoles={['SUPERVISOR', 'ADMIN']}>
+                  <AttendanceTerminal />
                 </ProtectedRoute>
               } 
             />

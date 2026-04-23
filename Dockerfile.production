@@ -1,0 +1,92 @@
+# --- Stage 1: Build Frontend ---
+FROM node:20-slim AS frontend-builder
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm install
+COPY frontend ./
+RUN npm run build
+
+# --- Stage 2: Final Unified Image (Ubuntu based for MongoDB support) ---
+FROM ubuntu:22.04
+
+# Avoid prompts during installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# 1. Install System Dependencies (Node, Mongo, Nginx, Supervisor)
+RUN apt-get update && apt-get install -y \
+    curl \
+    gnupg \
+    nginx \
+    supervisor \
+    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
+    && apt-get install -y nodejs \
+    && curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg \
+    && echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/7.0 multiverse" | tee /etc/apt/sources.list.d/mongodb-org-7.0.list \
+    && apt-get update && apt-get install -y mongodb-org \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create MongoDB data directory
+RUN mkdir -p /var/lib/mongodb && chown -R root:root /var/lib/mongodb
+
+WORKDIR /app
+
+# 2. Setup Backend Root and Common
+COPY backend/common ./backend/common
+COPY backend/package*.json ./backend/
+RUN cd backend && npm install --production
+
+# 3. Setup All Backend Services
+COPY backend/auth-service/package*.json ./backend/auth-service/
+RUN cd backend/auth-service && npm install --production
+
+COPY backend/labour-service/package*.json ./backend/labour-service/
+RUN cd backend/labour-service && npm install --production
+
+COPY backend/attendance-service/package*.json ./backend/attendance-service/
+RUN cd backend/attendance-service && npm install --production
+
+COPY backend/deployment-service/package*.json ./backend/deployment-service/
+RUN cd backend/deployment-service && npm install --production
+
+COPY backend/reporting-service/package*.json ./backend/reporting-service/
+RUN cd backend/reporting-service && npm install --production
+
+COPY backend/gateway/package*.json ./backend/gateway/
+RUN cd backend/gateway && npm install --production
+
+# Copy Source Code
+COPY backend/auth-service ./backend/auth-service
+COPY backend/labour-service ./backend/labour-service
+COPY backend/attendance-service ./backend/attendance-service
+COPY backend/deployment-service ./backend/deployment-service
+COPY backend/reporting-service ./backend/reporting-service
+COPY backend/gateway ./backend/gateway
+
+# 4. Setup Frontend & Nginx
+COPY --from=frontend-builder /app/frontend/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/sites-available/default
+# Ubuntu Nginx uses sites-enabled
+RUN ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+
+# 5. Setup Supervisor
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Default Environment Variables (Now pointing to internal MongoDB)
+ENV NODE_ENV=production
+ENV MONGO_URI=mongodb://127.0.0.1:27017/constructsync_db
+ENV JWT_SECRET=constructsync_secret_key_2026
+ENV AUTH_SERVICE_URL=http://localhost:5001
+ENV LABOUR_SERVICE_URL=http://localhost:5002
+ENV ATTENDANCE_SERVICE_URL=http://localhost:5003
+ENV DEPLOYMENT_SERVICE_URL=http://localhost:5004
+ENV REPORTING_SERVICE_URL=http://localhost:5005
+ENV EMAIL_USER=
+ENV EMAIL_PASS=
+ENV EMAIL_SERVICE=gmail
+ENV EMAIL_USERNAME=ConstructSync
+
+# Expose Port 80
+EXPOSE 80
+
+# Start everything
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

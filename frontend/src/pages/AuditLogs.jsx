@@ -25,6 +25,8 @@ const AuditLogs = () => {
   const [pagination, setPagination] = useState({ page: 1, pages: 1, total: 0 });
   const [filters, setFilters] = useState({
     actionType: '',
+    module: '',
+    search: '',
     startDate: '',
     endDate: '',
     limit: 20
@@ -35,9 +37,11 @@ const AuditLogs = () => {
   const fetchLogs = async (pageNumber = 1) => {
     setLoading(true);
     try {
-      const { actionType, startDate, endDate, limit } = filters;
+      const { actionType, module, search, startDate, endDate, limit } = filters;
       let url = `/reporting/admin/audit-logs?page=${pageNumber}&limit=${limit}`;
       if (actionType) url += `&actionType=${actionType}`;
+      if (module) url += `&module=${module}`;
+      if (search) url += `&search=${search}`;
       if (startDate) url += `&startDate=${startDate}`;
       if (endDate) url += `&endDate=${endDate}`;
 
@@ -57,7 +61,7 @@ const AuditLogs = () => {
 
   useEffect(() => {
     fetchLogs(1);
-  }, [filters.actionType, filters.limit]);
+  }, [filters.actionType, filters.module, filters.limit]);
 
   const handlePageChange = (newPage) => {
     if (newPage >= 1 && newPage <= pagination.pages) {
@@ -99,7 +103,21 @@ const AuditLogs = () => {
 
       {/* Control Terminal */}
       <div className="bg-slate-900 p-8 border-4 border-slate-900 shadow-[8px_8px_0px_0px_rgba(234,88,12,1)]">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6">
+          <div className="space-y-2 lg:col-span-2">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Keyword Surveillance</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3 w-3 text-slate-500" />
+              <input 
+                type="text"
+                placeholder="SEARCH ACTIONS, MODULES, PERSONNEL..."
+                className="w-full bg-slate-800 border-2 border-slate-700 text-white pl-10 p-3 text-[10px] font-bold focus:border-orange-500 outline-none uppercase placeholder:text-slate-600"
+                value={filters.search}
+                onChange={(e) => setFilters({...filters, search: e.target.value})}
+              />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Protocol Filter</label>
             <select 
@@ -113,6 +131,24 @@ const AuditLogs = () => {
               <option value="USER_REGISTERED">User Provisioning</option>
               <option value="USER_UPDATED">Record Modifications</option>
               <option value="ACCOUNT_LOCKED">Security Lockouts</option>
+              <option value="ATTENDANCE_CHECK_IN">Personnel In</option>
+              <option value="ATTENDANCE_CHECK_OUT">Personnel Out</option>
+            </select>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Module Sector</label>
+            <select 
+              className="w-full bg-slate-800 border-2 border-slate-700 text-white p-3 text-[10px] font-bold focus:border-orange-500 outline-none uppercase"
+              value={filters.module}
+              onChange={(e) => setFilters({...filters, module: e.target.value})}
+            >
+              <option value="">All Sectors</option>
+              <option value="AUTH">Authentication</option>
+              <option value="LABOUR">Labour Registry</option>
+              <option value="DEPLOYMENT">Deployment</option>
+              <option value="ATTENDANCE">Attendance</option>
+              <option value="REPORTING">Reporting</option>
             </select>
           </div>
 

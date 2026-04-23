@@ -15,14 +15,16 @@ const Attendance = mongoose.model('Attendance', new mongoose.Schema({
 const Labour = mongoose.model('Labour', new mongoose.Schema({
   name: String,
   labourId: String,
-  skillType: String,
+  skills: [String],
   isActive: Boolean
 }), 'labours');
 
 // Site Model
 const Site = mongoose.model('Site', new mongoose.Schema({
   name: String,
-  location: String
+  location: String,
+  supervisorId: mongoose.Schema.Types.ObjectId,
+  status: String
 }), 'sites');
 
 // Labour Group Model
@@ -60,4 +62,13 @@ const Deployment = mongoose.model('Deployment', new mongoose.Schema({
   endDate: Date
 }), 'deployments');
 
-module.exports = { Attendance, Labour, Site, LabourGroup, User, SystemAuditLog, Deployment };
+// System Setting Model
+const SystemSetting = mongoose.model('SystemSetting', new mongoose.Schema({
+  key: { type: String, unique: true, required: true },
+  value: mongoose.Schema.Types.Mixed,
+  description: String,
+  updatedBy: mongoose.Schema.Types.ObjectId,
+  lastUpdated: { type: Date, default: Date.now }
+}), 'system_settings');
+
+module.exports = { Attendance, Labour, Site, LabourGroup, User, SystemAuditLog, Deployment, SystemSetting };

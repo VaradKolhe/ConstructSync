@@ -37,3 +37,4 @@ logs/
 .env.*
 
 Gemini.md
+/.GEMINI_IMAGE_REF

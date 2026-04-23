@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  baseURL: import.meta.env.VITE_API_URL || '/api',
   withCredentials: true, // Crucial for HTTP-only cookies
   headers: {
     'Content-Type': 'application/json',
@@ -27,7 +27,7 @@ api.interceptors.response.use(
 
       try {
         // Attempt to get a new access token using the refresh token (cookie-based)
-        await axios.post('http://localhost:5000/api/auth/refresh', {}, { withCredentials: true });
+        await api.post('/auth/refresh');
         
         // If refresh successful, retry the original request
         return api(originalRequest);

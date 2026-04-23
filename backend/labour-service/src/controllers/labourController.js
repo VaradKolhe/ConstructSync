@@ -1,7 +1,24 @@
 const mongoose = require('mongoose');
 const Labour = require('../models/Labour');
+const ReferenceData = require('../models/ReferenceData');
 const ApiResponse = require('../../../common/utils/apiResponse');
 const { logAudit } = require('../../../common/utils/auditLogger');
+
+/**
+ * Helper to validate skills against DB
+ */
+const validateSkills = async (skills) => {
+  if (!skills || !Array.isArray(skills)) return true;
+  if (skills.length === 0) return false; // Must have at least one skill
+
+  const validSkills = await ReferenceData.find({
+    type: 'SKILL_TYPE',
+    isActive: true
+  }).select('name');
+  
+  const validSkillNames = validSkills.map(s => s.name);
+  return skills.every(s => validSkillNames.includes(s));
+};
 
 /**
  * Register a new labourer (FR-1.1)
@@ -13,6 +30,12 @@ exports.createLabour = async (req, res, next) => {
       emergencyContact, address, skills, aadhaarNumber,
       profilePhoto, bankDetails, employmentHistory 
     } = req.body;
+
+    // Validate skills
+    const isSkillsValid = await validateSkills(skills);
+    if (!isSkillsValid) {
+      return ApiResponse.error(res, 'Invalid Skill Matrix: Specializations must be verified', 400);
+    }
 
     // FR-1.5: Duplicate Aadhaar detection
     const exists = await Labour.findOne({ aadhaarNumber });
@@ -45,18 +68,27 @@ exports.createLabour = async (req, res, next) => {
  */
 exports.getAllLabours = async (req, res, next) => {
   try {
-    const { status, skill, search, page = 1, limit = 50, includeInactive } = req.query;
+    const { status, skill, search, page = 1, limit = 50, includeInactive, siteId } = req.query;
     
-    // By default, we show all (active and inactive) as requested, 
-    // but allow explicit filtering via query param if needed in future
     let query = {};
     
     if (includeInactive === 'false') {
       query.isActive = true;
     }
 
+    // Filter by siteId if provided (Supervisor visibility constraint)
+    if (siteId) {
+      const deployments = await mongoose.connection.db.collection('deployments').find({
+        siteId: new mongoose.Types.ObjectId(siteId),
+        status: 'ACTIVE'
+      }).toArray();
+      
+      const labourIds = deployments.map(d => d.labourId);
+      query._id = { $in: labourIds };
+    }
+
     if (status) query.status = status;
-    if (skill) query.skills = { $in: [skill] };
+    if (skill) query.skills = { $regex: new RegExp(`^${skill}$`, 'i') };
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
@@ -110,14 +142,23 @@ exports.updateLabour = async (req, res, next) => {
     const labour = await Labour.findById(req.params.id);
     if (!labour) return ApiResponse.error(res, 'Labour not found', 404);
 
-    // FR-1.6: Log edits with editor name and timestamp
+    // Validate skills if provided
+    if (req.body.skills) {
+      const isSkillsValid = await validateSkills(req.body.skills);
+      if (!isSkillsValid) {
+        return ApiResponse.error(res, 'Invalid Skill Matrix: Specializations must be verified', 400);
+      }
+    }
+
+    // FR-1.6: Log edits with editor name (with role suffix) and timestamp
     const editorId = req.user.id;
-    const editorName = req.user.name || 'System User';
+    const roleSuffix = req.user.role ? ` (${req.user.role})` : '';
+    const editorName = `${req.user.name || 'System User'}${roleSuffix}`;
     
     labour.editHistory.push({
       editorName,
       timestamp: new Date(),
-      changes: req.body // Simplified: storing the incoming body as change set
+      changes: req.body
     });
 
     labour.lastEditor = editorId;
