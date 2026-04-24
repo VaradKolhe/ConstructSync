@@ -22,7 +22,7 @@ foreach ($dir in $directories) {
     if (Test-Path $fullPath) {
         Write-Host "`n>> Installing dependencies in: $dir" -ForegroundColor Green
         Push-Location $fullPath
-        npm install
+        npm ci
         Pop-Location
     } else {
         Write-Host "Warning: Directory not found - $dir" -ForegroundColor Yellow

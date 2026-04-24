@@ -3,13 +3,13 @@
 
 $rootDir = Get-Location
 $services = @(
-    @{ name = "Gateway"; path = "backend\gateway" },
     @{ name = "Auth"; path = "backend\auth-service" },
     @{ name = "Labour"; path = "backend\labour-service" },
     @{ name = "Attendance"; path = "backend\attendance-service" },
     @{ name = "Deployment"; path = "backend\deployment-service" },
     @{ name = "Reporting"; path = "backend\reporting-service" },
-    @{ name = "Frontend"; path = "frontend" }
+    @{ name = "Frontend"; path = "frontend" },
+    @{ name = "Gateway"; path = "backend\gateway" }
 )
 
 Write-Host "Checking services and preparing tabs..." -ForegroundColor Cyan
