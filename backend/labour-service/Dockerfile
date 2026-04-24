@@ -1,21 +1,21 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
-WORKDIR /usr/src/app
+ENV NODE_ENV=production
 
-# Copy shared common code
+WORKDIR /app
+
 COPY common ./common
 
-# Copy service code
+COPY labour-service/package*.json ./labour-service/
+
+RUN cd labour-service && npm install --production
+
 COPY labour-service ./labour-service
 
-# Move to service directory
-WORKDIR /usr/src/app/labour-service
+USER node
 
-# Install dependencies
-RUN npm install --production
+WORKDIR /app/labour-service
 
-# Expose port
 EXPOSE 5002
 
-# Start the service
 CMD ["node", "server.js"]

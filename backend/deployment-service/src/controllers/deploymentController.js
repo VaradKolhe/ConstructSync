@@ -32,7 +32,7 @@ exports.createSite = async (req, res, next) => {
  */
 exports.updateSite = async (req, res, next) => {
   try {
-    const { name, location, supervisorId, status } = req.body;
+    const { name, location, supervisorId, status, isLocked } = req.body;
     const site = await Site.findById(req.params.id);
     if (!site) return ApiResponse.error(res, 'Site not found', 404);
 
@@ -40,18 +40,23 @@ exports.updateSite = async (req, res, next) => {
     if (location) site.location = location;
     if (supervisorId) site.supervisorId = supervisorId;
     if (status) site.status = status;
+    
+    // Handle Master Lock Toggle
+    if (typeof isLocked !== 'undefined') {
+      site.isLocked = isLocked;
+    }
 
     await site.save();
 
     await logAudit(mongoose, {
       userId: req.user.id,
-      action: 'SITE_UPDATED',
+      action: isLocked ? 'SITE_MASTER_LOCKED' : 'SITE_UNLOCKED',
       module: 'DEPLOYMENT',
-      details: { siteId: site._id, changes: req.body },
+      details: { siteId: site._id, name: site.name, isLocked: site.isLocked },
       ipAddress: req.ip
     });
 
-    return ApiResponse.success(res, 'Site updated successfully', site);
+    return ApiResponse.success(res, 'Site specifications updated successfully', site);
   } catch (error) {
     next(error);
   }
@@ -254,7 +259,7 @@ exports.getSiteDeployments = async (req, res, next) => {
     const deployments = await Deployment.find({
       siteId: req.params.siteId,
       status: 'ACTIVE',
-    }).lean();
+    }).populate('labourId', 'name labourId skills').lean();
 
     // Calculate duration for each deployment
     const now = new Date();

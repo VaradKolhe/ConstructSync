@@ -472,6 +472,15 @@ const LabourDirectory = () => {
                         onChange={e => setEditData({...editData, bankDetails: {...editData.bankDetails, ifscCode: e.target.value.toUpperCase()}})}
                       />
                     </div>
+                    <div className="space-y-2">
+                      <label className="block text-[9px] font-black text-slate-500 uppercase tracking-widest">Monthly Salary (₹)</label>
+                      <input 
+                        type="number" 
+                        className="input-industrial h-10 py-0" 
+                        value={editData.monthlySalary} 
+                        onChange={e => setEditData({...editData, monthlySalary: e.target.value})}
+                      />
+                    </div>
                   </div>
 
                   <div className="flex space-x-4 pt-4 border-t-2 border-slate-50">
@@ -555,6 +564,10 @@ const LabourDirectory = () => {
                               {showFullAadhaar ? <EyeOff size={14} /> : <Eye size={14} />}
                             </button>
                           </div>
+                        </div>
+                        <div className="flex justify-between items-center border-t border-slate-200 pt-3">
+                          <span className="text-[10px] font-black text-slate-400 uppercase">Monthly Salary</span>
+                          <span className="text-sm font-black text-orange-600 tracking-tighter italic">₹ {selectedLabour.monthlySalary?.toLocaleString() || 0}</span>
                         </div>
                         <div className="border-t border-slate-200 pt-3">
                           <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Bank Account Terminal</p>

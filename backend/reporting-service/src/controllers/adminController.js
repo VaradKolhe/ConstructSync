@@ -12,24 +12,37 @@ exports.getDashboardKPIs = async (req, res, next) => {
 
     // 1. Common KPIs (Total Labour & Active Deployments)
     const totalLabour = await Labour.countDocuments({ isActive: true });
-    const activeDeployments = await Deployment.countDocuments({ status: 'ACTIVE' });
+    
+    // Site filter based on role
+    let siteFilter = {};
+    if (role === 'SUPERVISOR') {
+      const supervisorSites = await Site.find({ supervisorId: userId }).select('_id');
+      const siteIds = supervisorSites.map(s => s._id);
+      siteFilter = { 'metadata.siteId': { $in: siteIds } };
+    }
+
+    const activeSitesCount = await Site.countDocuments({ 
+      ...(role === 'SUPERVISOR' ? { supervisorId: userId } : {}),
+      status: 'ACTIVE' 
+    });
     
     // Today's attendance rate
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
     const todayAttendanceCount = await Attendance.countDocuments({
+      ...siteFilter,
       date: today,
       status: { $in: ['PRESENT', 'HALF-DAY'] }
     });
     
-    const attendanceRate = activeDeployments > 0 
-      ? ((todayAttendanceCount / activeDeployments) * 100).toFixed(1) 
+    const attendanceRate = activeSitesCount > 0 
+      ? ((todayAttendanceCount / (await Deployment.countDocuments({ ...siteFilter, status: 'ACTIVE' }))) * 100).toFixed(1) 
       : 0;
 
     data.kpis = {
       totalLabour,
-      activeDeployments,
-      attendanceRate: parseFloat(attendanceRate)
+      activeDeployments: activeSitesCount, // Renamed internally but keeping key for frontend
+      attendanceRate: parseFloat(attendanceRate) || 0
     };
 
     // 2. ADMIN Role Specific Data
@@ -67,15 +80,38 @@ exports.getDashboardKPIs = async (req, res, next) => {
 
     // 4. SUPERVISOR Role Specific Data
     if (role === 'SUPERVISOR') {
-      // Find the site assigned to THIS supervisor
-      const site = await Site.findOne({ supervisorId: userId });
-      if (site) {
-        data.assignedSite = {
-          name: site.name,
-          location: site.location,
-          onSiteCount: await Attendance.countDocuments({ siteId: site._id, date: today, status: 'PRESENT' }),
-          pendingCheckOut: await Attendance.countDocuments({ siteId: site._id, date: today, status: 'PRESENT', checkOutTime: null })
-        };
+      // Find all sites assigned to THIS supervisor
+      const sites = await Site.find({ supervisorId: userId });
+      
+      if (sites.length > 0) {
+        const siteData = await Promise.all(sites.map(async (site) => {
+          return {
+            _id: site._id,
+            name: site.name,
+            location: site.location,
+            onSiteCount: await Attendance.countDocuments({ 
+              'metadata.siteId': site._id, 
+              date: today, 
+              status: { $in: ['PRESENT', 'HALF-DAY'] },
+              checkOutTime: null 
+            }),
+            pendingCheckOut: await Attendance.countDocuments({ 
+              'metadata.siteId': site._id, 
+              date: today, 
+              status: { $in: ['PRESENT', 'HALF-DAY'] },
+              checkOutTime: null 
+            }),
+            totalToday: await Attendance.countDocuments({
+              'metadata.siteId': site._id,
+              date: today,
+              status: { $in: ['PRESENT', 'HALF-DAY'] }
+            })
+          };
+        }));
+        
+        data.assignedSites = siteData;
+        // Keep assignedSite for backward compatibility with frontend if needed, taking the first one
+        data.assignedSite = siteData[0];
       }
     }
 

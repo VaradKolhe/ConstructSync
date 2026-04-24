@@ -1,0 +1,95 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test-backend:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [auth-service, labour-service, attendance-service, deployment-service, reporting-service, gateway]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/${{ matrix.service }}/package-lock.json
+      
+      - name: Install dependencies
+        working-directory: backend/${{ matrix.service }}
+        run: npm ci
+
+      - name: Run tests
+        working-directory: backend/${{ matrix.service }}
+        run: npm test
+
+  build-docker:
+    needs: test-backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Auth Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/auth-service/Dockerfile
+          push: false
+          tags: constructsync-auth:latest
+
+      - name: Build Labour Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/labour-service/Dockerfile
+          push: false
+          tags: constructsync-labour:latest
+
+      - name: Build Attendance Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/attendance-service/Dockerfile
+          push: false
+          tags: constructsync-attendance:latest
+
+      - name: Build Deployment Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/deployment-service/Dockerfile
+          push: false
+          tags: constructsync-deployment:latest
+
+      - name: Build Reporting Service
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/reporting-service/Dockerfile
+          push: false
+          tags: constructsync-reporting:latest
+
+      - name: Build Gateway
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/gateway/Dockerfile
+          push: false
+          tags: constructsync-gateway:latest
+
+      - name: Build Frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: false
+          tags: constructsync-frontend:latest

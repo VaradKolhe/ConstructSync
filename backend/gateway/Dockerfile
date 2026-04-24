@@ -1,21 +1,22 @@
-FROM node:18-alpine
+FROM node:20-alpine
 
-WORKDIR /usr/src/app
+ENV NODE_ENV=production
 
-# Gateway doesn't strictly need common usually, but it's safe to copy for consistency
+WORKDIR /app
+
+# Gateway might not use common but let's be consistent
 COPY common ./common
 
-# Copy service code
+COPY gateway/package*.json ./gateway/
+
+RUN cd gateway && npm install --production
+
 COPY gateway ./gateway
 
-# Move to service directory
-WORKDIR /usr/src/app/gateway
+USER node
 
-# Install dependencies
-RUN npm install --production
+WORKDIR /app/gateway
 
-# Expose port
 EXPOSE 5000
 
-# Start the service
 CMD ["node", "server.js"]

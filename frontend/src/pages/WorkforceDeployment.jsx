@@ -29,6 +29,8 @@ const WorkforceDeployment = () => {
 
   const [labours, setLabours] = useState([]);
   const [sites, setSites] = useState([]);
+  const [groups, setGroups] = useState([]);
+  const [selectedGroupId, setSelectedGroupId] = useState('');
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedSiteId, setSelectedSiteId] = useState(initialSiteId);
@@ -51,19 +53,30 @@ const WorkforceDeployment = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // 1. Fetch sites first
-      const sitesRes = await api.get('/deployments/sites');
+      // 1. Fetch sites and groups in parallel
+      const [sitesRes, groupsRes] = await Promise.all([
+        api.get('/deployments/sites'),
+        api.get('/deployments/groups')
+      ]);
+      
       let siteList = sitesRes.data.data;
       setSites(siteList);
+      setGroups(groupsRes.data.data);
       
       let labourUrl = `/labours?search=${search}`;
       
-      // Supervisor Constraint: Only see their site's personnel
+      // Supervisor Constraint: Only see their sites' personnel
       if (user?.role === 'SUPERVISOR') {
-        const mySite = siteList.find(s => s.supervisorId === user.id);
-        if (mySite) {
-          labourUrl += `&siteId=${mySite._id}`;
-          setSelectedSiteId(mySite._id);
+        const mySites = siteList.filter(s => s.supervisorId === user.id);
+        const mySiteIds = mySites.map(s => s._id);
+        
+        if (mySiteIds.length > 0) {
+          // If no specific site selected, show all their sites' personnel
+          if (!selectedSiteId || !mySiteIds.includes(selectedSiteId)) {
+             labourUrl += `&siteIds=${mySiteIds.join(',')}`;
+          } else {
+             labourUrl += `&siteId=${selectedSiteId}`;
+          }
         } else {
           setLabours([]);
           setLoading(false);
@@ -75,7 +88,17 @@ const WorkforceDeployment = () => {
       }
 
       const labourRes = await api.get(labourUrl);
-      setLabours(labourRes.data.data.labours);
+      let labourList = labourRes.data.data.labours;
+
+      // Apply Group Filter if selected
+      if (selectedGroupId) {
+        const group = groupsRes.data.data.find(g => g._id === selectedGroupId);
+        if (group) {
+          labourList = labourList.filter(l => group.members.includes(l._id));
+        }
+      }
+
+      setLabours(labourList);
     } catch (err) {
       toast.error('Logistics error: Could not synchronize personnel or site data');
     } finally {
@@ -85,7 +108,7 @@ const WorkforceDeployment = () => {
 
   useEffect(() => {
     fetchData();
-  }, [search]);
+  }, [search, selectedGroupId]);
 
   const handleOpenAssign = (labour, redeploy = false) => {
     setAssigningLabour(labour);
@@ -175,15 +198,26 @@ const WorkforceDeployment = () => {
       <div className="flex flex-col lg:flex-row gap-8">
         {/* Left: Search & Labour List */}
         <div className="lg:w-2/3 space-y-6">
-          <div className="relative">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 h-5 w-5" />
-            <input 
-              type="text" 
-              placeholder={user?.role === 'SUPERVISOR' ? "SEARCH PERSONNEL ON YOUR SITE..." : "SEARCH PERSONNEL FOR DEPLOYMENT..."}
-              className="w-full pl-12 pr-4 py-4 border-2 border-slate-900 bg-white text-xs font-black uppercase tracking-widest focus:outline-none focus:bg-slate-50"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 h-5 w-5" />
+              <input 
+                type="text" 
+                placeholder={user?.role === 'SUPERVISOR' ? "SEARCH PERSONNEL ON YOUR SITE..." : "SEARCH PERSONNEL FOR DEPLOYMENT..."}
+                className="w-full pl-12 pr-4 py-4 border-2 border-slate-900 bg-white text-xs font-black uppercase tracking-widest focus:outline-none focus:bg-slate-50"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+            
+            <div className="relative">
+              <IndustrialSelect 
+                placeholder="FILTER BY LABOUR GROUP..."
+                options={groups.map(g => ({ value: g._id, label: g.name.toUpperCase() }))}
+                value={selectedGroupId}
+                onChange={(val) => setSelectedGroupId(val)}
+              />
+            </div>
           </div>
 
           <div className="bg-white border-2 border-slate-900 overflow-hidden shadow-[8px_8px_0px_0px_rgba(15,23,42,1)]">
@@ -264,8 +298,7 @@ const WorkforceDeployment = () => {
                   <div className="flex justify-between items-center">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Awaiting Deployment</span>
                     <span className="text-2xl font-black text-orange-500">
-                      {/* This would need another API call or filter to be accurate across all labour */}
-                      Syncing...
+                      {labours.filter(l => l.status === 'AVAILABLE').length}
                     </span>
                   </div>
                 )}

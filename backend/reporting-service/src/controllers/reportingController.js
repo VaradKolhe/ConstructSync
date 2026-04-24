@@ -14,7 +14,7 @@ const generateCacheKey = (params, format) => {
   const sortedParams = Object.keys(params)
     .sort()
     .reduce((acc, key) => ({ ...acc, [key]: params[key] }), {});
-  return crypto.createHash('md5').update(JSON.stringify({ ...sortedParams, format })).digest('hex');
+  return crypto.createHash('md5').update(JSON.stringify({ ...sortedParams, format, version: 'v4' })).digest('hex');
 };
 
 /**
@@ -32,7 +32,7 @@ const logReport = async (userId, type, params) => {
  * Get aggregated data based on filters
  */
 const getAggregatedData = async (filters) => {
-  const { siteId, labourId, groupId, startDate, endDate, skillType } = filters;
+  const { siteId, labourId, groupId, startDate, endDate, skillType, search } = filters;
 
   const match = {};
   if (startDate || endDate) {
@@ -40,14 +40,14 @@ const getAggregatedData = async (filters) => {
     if (startDate) match.date.$gte = new Date(startDate);
     if (endDate) match.date.$lte = new Date(endDate);
   }
-  if (siteId) match.siteId = new mongoose.Types.ObjectId(siteId);
-  if (labourId) match.labourId = new mongoose.Types.ObjectId(labourId);
+  if (siteId) match['metadata.siteId'] = new mongoose.Types.ObjectId(siteId);
+  if (labourId) match['metadata.labourId'] = new mongoose.Types.ObjectId(labourId);
 
   // If group filtering is requested
   if (groupId) {
     const group = await LabourGroup.findById(groupId);
     if (group) {
-      match.labourId = { $in: group.members };
+      match['metadata.labourId'] = { $in: group.members };
     }
   }
 
@@ -56,13 +56,25 @@ const getAggregatedData = async (filters) => {
     {
       $lookup: {
         from: 'labours',
-        localField: 'labourId',
+        localField: 'metadata.labourId',
         foreignField: '_id',
         as: 'labourDetails',
       },
     },
     { $unwind: '$labourDetails' },
   ];
+
+  // Search filter
+  if (search) {
+    pipeline.push({
+      $match: {
+        $or: [
+          { 'labourDetails.name': { $regex: search, $options: 'i' } },
+          { 'labourDetails.labourId': { $regex: search, $options: 'i' } }
+        ]
+      }
+    });
+  }
 
   // Skill Type filter
   if (skillType) {
@@ -73,7 +85,7 @@ const getAggregatedData = async (filters) => {
     {
       $lookup: {
         from: 'sites',
-        localField: 'siteId',
+        localField: 'metadata.siteId',
         foreignField: '_id',
         as: 'siteDetails',
       },
@@ -81,7 +93,7 @@ const getAggregatedData = async (filters) => {
     { $unwind: '$siteDetails' },
     {
       $group: {
-        _id: '$labourId',
+        _id: '$metadata.labourId',
         labourIdStr: { $first: '$labourDetails.labourId' },
         name: { $first: '$labourDetails.name' },
         skills: { $first: '$labourDetails.skills' },
@@ -91,6 +103,7 @@ const getAggregatedData = async (filters) => {
         totalLeave: { $sum: { $cond: [{ $eq: ['$status', 'LEAVE'] }, 1, 0] } },
         totalAbsent: { $sum: { $cond: [{ $eq: ['$status', 'ABSENT'] }, 1, 0] } },
         totalHours: { $sum: '$totalHours' },
+        monthlySalary: { $first: '$labourDetails.monthlySalary' },
       },
     },
     {
@@ -104,6 +117,13 @@ const getAggregatedData = async (filters) => {
         totalLeave: 1,
         totalAbsent: 1,
         totalWorkingHours: '$totalHours',
+        monthlySalary: { $ifNull: ['$monthlySalary', 0] },
+        totalEarnings: {
+          $multiply: [
+            { $divide: [{ $ifNull: ['$monthlySalary', 25000] }, 30] }, // Default 25k if missing for demo
+            { $add: ['$totalPresent', { $multiply: ['$totalHalfDay', 0.5] }] }
+          ]
+        },
         averageDailyHours: {
           $cond: [
             { $gt: [{ $add: ['$totalPresent', '$totalHalfDay'] }, 0] },
@@ -123,12 +143,14 @@ const getAggregatedData = async (filters) => {
  */
 exports.exportPayrollExcel = async (req, res, next) => {
   try {
-    const cacheKey = generateCacheKey(req.query, 'EXCEL');
+    const { type = 'payroll' } = req.query;
+    const cacheKey = generateCacheKey(req.query, `EXCEL_${type.toUpperCase()}`);
+    
     const cached = await ReportCache.findOne({ cacheKey });
     if (cached) {
-      await logReport(req.user.id, 'PAYROLL_EXCEL_CACHE', req.query);
+      await logReport(req.user.id, `${type.toUpperCase()}_EXCEL_CACHE`, req.query);
       res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-      res.setHeader('Content-Disposition', 'attachment; filename=payroll_report.xlsx');
+      res.setHeader('Content-Disposition', `attachment; filename=${type}_report.xlsx`);
       return res.send(cached.fileBuffer);
     }
 
@@ -138,42 +160,81 @@ exports.exportPayrollExcel = async (req, res, next) => {
     }
 
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet('Payroll');
+    const worksheet = workbook.addWorksheet(type.toUpperCase());
 
-    worksheet.columns = [
+    const baseColumns = [
       { header: 'Labour ID', key: 'labourId', width: 20 },
       { header: 'Name', key: 'name', width: 25 },
       { header: 'Skills', key: 'skills', width: 20 },
       { header: 'Site', key: 'siteName', width: 20 },
-      { header: 'Present Days', key: 'totalPresent', width: 15 },
-      { header: 'Half Days', key: 'totalHalfDay', width: 15 },
-      { header: 'Leave Days', key: 'totalLeave', width: 15 },
-      { header: 'Absent Days', key: 'totalAbsent', width: 15 },
-      { header: 'Total Hours', key: 'totalWorkingHours', width: 15 },
-      { header: 'Avg Hours', key: 'averageDailyHours', width: 15 },
     ];
 
+    if (type === 'payroll') {
+      worksheet.columns = [
+        ...baseColumns,
+        { header: 'Monthly Salary', key: 'monthlySalary', width: 15 },
+        { header: 'Total Days', key: 'totalDays', width: 12 },
+        { header: 'Total Hours', key: 'totalWorkingHours', width: 15 },
+        { header: 'Avg Hours', key: 'averageDailyHours', width: 15 },
+        { header: 'Net Earnings', key: 'totalEarnings', width: 15 },
+      ];
+    } else {
+      worksheet.columns = [
+        ...baseColumns,
+        { header: 'Present', key: 'totalPresent', width: 10 },
+        { header: 'Half Day', key: 'totalHalfDay', width: 10 },
+        { header: 'Leave', key: 'totalLeave', width: 10 },
+        { header: 'Absent', key: 'totalAbsent', width: 10 },
+        { header: 'Total Hours', key: 'totalWorkingHours', width: 15 },
+        { header: 'Avg Hours', key: 'averageDailyHours', width: 15 },
+      ];
+    }
+
     data.forEach(item => {
-      worksheet.addRow({
-        ...item,
-        skills: Array.isArray(item.skills) ? item.skills.join(', ') : item.skills
-      });
+      const rowData = {
+        labourId: item.labourId || 'N/A',
+        name: item.name || 'UNKNOWN',
+        skills: Array.isArray(item.skills) ? item.skills.join(', ') : (item.skills || 'N/A'),
+        siteName: item.siteName || 'N/A',
+        totalWorkingHours: (item.totalWorkingHours || 0).toFixed(1),
+        averageDailyHours: (item.averageDailyHours || 0).toFixed(1),
+      };
+
+      if (type === 'payroll') {
+        rowData.monthlySalary = item.monthlySalary || 0;
+        rowData.totalDays = (item.totalPresent || 0) + ((item.totalHalfDay || 0) * 0.5);
+        rowData.totalEarnings = Math.round(item.totalEarnings || 0);
+      } else {
+        rowData.totalPresent = item.totalPresent || 0;
+        rowData.totalHalfDay = item.totalHalfDay || 0;
+        rowData.totalLeave = item.totalLeave || 0;
+        rowData.totalAbsent = item.totalAbsent || 0;
+      }
+
+      worksheet.addRow(rowData);
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
 
-    await ReportCache.create({
-      cacheKey,
-      reportType: 'PAYROLL',
-      format: 'EXCEL',
-      fileBuffer: buffer,
-      generatedBy: req.user.id,
-    });
+    try {
+      const existing = await ReportCache.findOne({ cacheKey });
+      if (!existing) {
+        await ReportCache.create({
+          cacheKey,
+          reportType: type.toUpperCase(),
+          format: 'EXCEL',
+          fileBuffer: buffer,
+          generatedBy: req.user.id,
+        });
+      }
+    } catch (cacheErr) {
+      console.error('[Excel Cache Error]:', cacheErr.message);
+    }
 
-    await logReport(req.user.id, 'PAYROLL_EXCEL', req.query);
+    await logReport(req.user.id, `${type.toUpperCase()}_EXCEL`, req.query);
 
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    res.setHeader('Content-Disposition', 'attachment; filename=payroll_report.xlsx');
+    res.setHeader('Content-Disposition', `attachment; filename=${type}_report.xlsx`);
     return res.send(buffer);
   } catch (error) {
     next(error);
@@ -181,80 +242,143 @@ exports.exportPayrollExcel = async (req, res, next) => {
 };
 
 /**
- * Export PDF Report (FR-5.4)
+ * Export PDF Report (FR-5.4) - INDUSTRIAL REDESIGN
  */
 exports.exportPdfReport = async (req, res, next) => {
   try {
-    const cacheKey = generateCacheKey(req.query, 'PDF');
+    const { type = 'attendance' } = req.query;
+    const cacheKey = generateCacheKey(req.query, `PDF_${type.toUpperCase()}`);
+    
     const cached = await ReportCache.findOne({ cacheKey });
     if (cached) {
-      await logReport(req.user.id, 'REPORT_PDF_CACHE', req.query);
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'attachment; filename=report.pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=CONSTRUCTSYNC_${type.toUpperCase()}_REPORT.pdf`);
       return res.send(cached.fileBuffer);
     }
 
+    console.log(`[PDF Export] Initiating generation (v4-fix) for type: ${type}`);
     const data = await getAggregatedData(req.query);
     if (!data || data.length === 0) {
-      return ApiResponse.error(res, 'No data detected for the requested boundary. Export aborted.', 404);
+      return ApiResponse.error(res, 'No data detected for the requested boundary.', 404);
     }
 
-    const doc = new PDFDocument({ margin: 30 });
+    const doc = new PDFDocument({ 
+      margin: 40,
+      size: 'A4',
+      layout: 'landscape',
+      bufferPages: true
+    });
+    
     let buffers = [];
     doc.on('data', buffers.push.bind(buffers));
     doc.on('end', async () => {
-      const pdfBuffer = Buffer.concat(buffers);
-
-      await ReportCache.create({
-        cacheKey,
-        reportType: 'GENERAL',
-        format: 'PDF',
-        fileBuffer: pdfBuffer,
-        generatedBy: req.user.id,
-      });
-
-      await logReport(req.user.id, 'REPORT_PDF', req.query);
-
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'attachment; filename=report.pdf');
-      res.send(pdfBuffer);
+      try {
+        const pdfBuffer = Buffer.concat(buffers);
+        
+        // Final safety check to avoid DuplicateKey if another request finished first
+        const existing = await ReportCache.findOne({ cacheKey });
+        if (!existing) {
+          await ReportCache.create({
+            cacheKey,
+            reportType: type.toUpperCase(),
+            format: 'PDF',
+            fileBuffer: pdfBuffer,
+            generatedBy: req.user.id,
+          });
+        }
+        
+        if (!res.headersSent) {
+          res.setHeader('Content-Type', 'application/pdf');
+          res.setHeader('Content-Disposition', `attachment; filename=CONSTRUCTSYNC_${type.toUpperCase()}_REPORT.pdf`);
+          res.send(pdfBuffer);
+        }
+      } catch (err) {
+        console.error('[PDF Export Pipeline Crash]:', err);
+        if (!res.headersSent) {
+          res.status(500).json({ success: false, message: 'PDF Generation failed internally' });
+        }
+      }
     });
 
-    // Letterhead (FR-5.4)
-    doc.fontSize(20).text('CONSTRUCTSYNC MANAGEMENT SYSTEM', { align: 'center' });
-    doc.fontSize(10).text('Enterprise Labour & Attendance Solutions', { align: 'center' });
-    doc.moveDown();
-    doc.fontSize(12).text(`Generated Date: ${new Date().toLocaleString()}`);
-    doc.text(`Report Type: Attendance Summary`);
-    doc.moveDown();
+    // --- INDUSTRIAL HEADER DESIGN ---
+    doc.rect(0, 0, doc.page.width, 100).fill('#0f172a');
+    doc.fillColor('#ffffff').fontSize(28).font('Helvetica-Bold').text('CONSTRUCT', 40, 35, { continued: true }).fillColor('#ea580c').text('SYNC');
+    doc.fillColor('#94a3b8').fontSize(8).font('Helvetica-Bold').text('ENTERPRISE LOGISTICS & MANPOWER SURVEILLANCE', 40, 70);
+    
+    doc.fillColor('#ffffff').fontSize(10).font('Helvetica-Bold').text(type.toUpperCase() + ' DISPATCH SUMMARY', 0, 45, { align: 'right', indent: 40 });
+    doc.fontSize(8).font('Helvetica').text(`GENERATED: ${new Date().toLocaleString().toUpperCase()}`, 0, 60, { align: 'right', indent: 40 });
 
-    // Table Header
-    doc.fontSize(10).text('Labour ID', 30, 150);
-    doc.text('Name', 120, 150);
-    doc.text('Site', 250, 150);
-    doc.text('Hours', 350, 150);
-    doc.text('Status (P/H/L/A)', 420, 150);
-    doc.moveTo(30, 165).lineTo(570, 165).stroke();
+    // --- METADATA BOX ---
+    doc.rect(40, 120, 760, 40).fill('#f8fafc').stroke('#0f172a');
+    doc.fillColor('#0f172a').fontSize(8).font('Helvetica-Bold').text('PERIOD BOUNDARY:', 55, 135);
+    doc.font('Helvetica').text(`${req.query.startDate || 'START'} TO ${req.query.endDate || 'END'}`, 150, 135);
+    doc.font('Helvetica-Bold').text('PROJECT SECTOR:', 350, 135);
+    doc.font('Helvetica').text(data[0]?.siteName || 'ALL SECTORS', 440, 135);
+    doc.font('Helvetica-Bold').text('UNIT COUNT:', 600, 135);
+    doc.font('Helvetica').text(`${data.length} PERSONNEL`, 670, 135);
 
-    let y = 175;
-    data.forEach((item) => {
-      if (y > 700) {
+    // --- TABLE HEADERS ---
+    const tableTop = 180;
+    doc.rect(40, tableTop, 760, 25).fill('#0f172a');
+    doc.fillColor('#ffffff').fontSize(8).font('Helvetica-Bold');
+    
+    doc.text('PERSONNEL ID', 50, tableTop + 8);
+    doc.text('FULL NAME & SPECIALIZATION', 150, tableTop + 8);
+    
+    if (type === 'payroll') {
+      doc.text('MONTHLY SALARY', 350, tableTop + 8, { width: 90, align: 'right' });
+      doc.text('TOTAL DAYS', 450, tableTop + 8, { width: 80, align: 'right' });
+      doc.text('TOTAL HOURS', 540, tableTop + 8, { width: 80, align: 'right' });
+      doc.text('NET EARNINGS (INR)', 640, tableTop + 8, { width: 150, align: 'right' });
+    } else {
+      doc.text('ATTENDANCE (P/H/L/A)', 400, tableTop + 8, { width: 150, align: 'center' });
+      doc.text('TOTAL HOURS', 560, tableTop + 8, { width: 100, align: 'right' });
+      doc.text('AVG DAILY', 680, tableTop + 8, { width: 100, align: 'right' });
+    }
+
+    // --- TABLE ROWS ---
+    let y = tableTop + 25;
+    data.forEach((item, index) => {
+      // Alternating row background
+      if (index % 2 === 0) {
+        doc.rect(40, y, 760, 30).fill('#f1f5f9');
+      }
+      
+      const skillsStr = Array.isArray(item.skills) ? item.skills.join(', ') : (item.skills || 'N/A');
+
+      doc.fillColor('#0f172a').fontSize(8).font('Helvetica-Bold').text(item.labourId, 50, y + 10);
+      doc.font('Helvetica').text(item.name.toUpperCase(), 150, y + 6);
+      doc.fillColor('#64748b').fontSize(7).text(skillsStr.toUpperCase(), 150, y + 18);
+      
+      doc.fillColor('#0f172a').fontSize(8).font('Helvetica');
+      if (type === 'payroll') {
+        const totalDays = (item.totalPresent || 0) + ((item.totalHalfDay || 0) * 0.5);
+        doc.text(`₹ ${item.monthlySalary.toLocaleString()}`, 350, y + 10, { width: 90, align: 'right' });
+        doc.text(`${totalDays.toFixed(1)} DAYS`, 450, y + 10, { width: 80, align: 'right' });
+        doc.text(`${item.totalWorkingHours.toFixed(1)} HRS`, 540, y + 10, { width: 80, align: 'right' });
+        doc.fillColor('#15803d').font('Helvetica-Bold').text(`₹ ${Math.round(item.totalEarnings).toLocaleString()}`, 640, y + 10, { width: 150, align: 'right' });
+      } else {
+        const stats = `${item.totalPresent} / ${item.totalHalfDay} / ${item.totalLeave} / ${item.totalAbsent}`;
+        doc.text(stats, 400, y + 10, { width: 150, align: 'center' });
+        doc.font('Helvetica-Bold').text(`${item.totalWorkingHours.toFixed(1)}`, 560, y + 10, { width: 100, align: 'right' });
+        doc.font('Helvetica').text(`${(item.averageDailyHours || 0).toFixed(1)}`, 680, y + 10, { width: 100, align: 'right' });
+      }
+      
+      // Page break check (Landscape A4 height is ~595pts)
+      if (y > 520 && index < data.length - 1) {
         doc.addPage();
         y = 50;
+      } else {
+        y += 30;
       }
-      doc.text(item.labourId, 30, y);
-      doc.text(item.name.substring(0, 20), 120, y);
-      doc.text(item.siteName.substring(0, 15), 250, y);
-      doc.text(item.totalWorkingHours.toFixed(1), 350, y);
-      doc.text(`${item.totalPresent}/${item.totalHalfDay}/${item.totalLeave}/${item.totalAbsent}`, 420, y);
-      y += 20;
     });
 
-    // Page Numbers (FR-5.4)
+    // --- FOOTER ---
     const range = doc.bufferedPageRange();
     for (let i = range.start; i < range.start + range.count; i++) {
       doc.switchToPage(i);
-      doc.text(`Page ${i + 1} of ${range.count}`, 500, 750);
+      doc.fillColor('#94a3b8').fontSize(7).font('Helvetica');
+      doc.text(`CONSTRUCTSYNC INTERNAL DOCUMENT • CLASSIFICATION: CONFIDENTIAL • PAGE ${i + 1 - range.start} OF ${range.count}`, 40, doc.page.height - 30, { align: 'center' });
     }
 
     doc.end();

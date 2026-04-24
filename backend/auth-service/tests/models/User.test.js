@@ -5,7 +5,9 @@ const User = require('../../src/models/User');
 let mongoServer;
 
 beforeAll(async () => {
-  mongoServer = await MongoMemoryServer.create();
+  mongoServer = await MongoMemoryServer.create({
+    binary: { version: '6.0.1' }
+  });
   const uri = mongoServer.getUri();
   await mongoose.connect(uri);
 });

@@ -2,8 +2,9 @@ const jwt = require('jsonwebtoken');
 const ApiResponse = require('../utils/apiResponse');
 const mongoose = global.mongooseInstance || require('mongoose');
 const User = require('../models/UserMinimal');
+const SystemSetting = require('../models/SystemSettingMinimal');
 
-const protect = (req, res, next) => {
+const protect = async (req, res, next) => {
   let token;
 
   // FR-2.9: Read token from HTTP-only cookie first
@@ -22,6 +23,19 @@ const protect = (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
+
+    // --- GLOBAL MAINTENANCE PROTOCOL ---
+    try {
+      if (req.user.role !== 'ADMIN') {
+        const maintenanceSetting = await SystemSetting.findOne({ key: 'MAINTENANCE_MODE' }).maxTimeMS(2000);
+        if (maintenanceSetting && (maintenanceSetting.value === true || maintenanceSetting.value === 'true')) {
+          return ApiResponse.error(res, 'SYSTEM OFFLINE: Global maintenance in progress. Only Admin access authorized.', 503);
+        }
+      }
+    } catch (dbError) {
+      console.error('[AuthMiddleware] Maintenance check failed, bypassing:', dbError.message);
+    }
+
     next();
   } catch (error) {
     if (error.name === 'TokenExpiredError') {

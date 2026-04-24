@@ -194,5 +194,26 @@ describe('Deployment Service Integration Tests', () => {
       expect(res.statusCode).toBe(200);
       expect(res.body.data.length).toBeGreaterThanOrEqual(1);
     });
+
+    it('should lock/unlock a construction site (Master Lock Protocol)', async () => {
+      // Lock the site
+      const lockRes = await request(app)
+        .put(`/api/deployments/sites/${siteId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ isLocked: true });
+      
+      expect(lockRes.statusCode).toBe(200);
+      expect(lockRes.body.data.isLocked).toBe(true);
+
+      // Verify lock in DB
+      const site = await Site.findById(siteId);
+      expect(site.isLocked).toBe(true);
+
+      // Unlock for future operations
+      await request(app)
+        .put(`/api/deployments/sites/${siteId}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ isLocked: false });
+    });
   });
 });

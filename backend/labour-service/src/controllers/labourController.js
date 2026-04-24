@@ -27,7 +27,7 @@ exports.createLabour = async (req, res, next) => {
   try {
     const { 
       name, dateOfBirth, gender, phone, 
-      emergencyContact, address, skills, aadhaarNumber,
+      emergencyContact, address, skills, aadhaarNumber, monthlySalary,
       profilePhoto, bankDetails, employmentHistory 
     } = req.body;
 
@@ -45,7 +45,7 @@ exports.createLabour = async (req, res, next) => {
 
     const labour = await Labour.create({ 
       name, dateOfBirth, gender, phone, 
-      emergencyContact, address, skills, aadhaarNumber,
+      emergencyContact, address, skills, aadhaarNumber, monthlySalary,
       profilePhoto, bankDetails, employmentHistory 
     });
 

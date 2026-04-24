@@ -26,10 +26,13 @@ const Reporting = () => {
   const [loading, setLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   
+  const [reportType, setReportType] = useState('attendance'); // 'attendance' or 'payroll'
+  
   const [filters, setFilters] = useState({
     siteId: '',
     skillType: '',
-    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0], // 1st of current month
+    labourSearch: '',
+    startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
   });
 
@@ -52,14 +55,16 @@ const Reporting = () => {
   const generateReport = async () => {
     setLoading(true);
     try {
-      const { siteId, skillType, startDate, endDate } = filters;
-      let url = `/reporting/attendance?startDate=${startDate}&endDate=${endDate}`;
+      const { siteId, skillType, labourSearch, startDate, endDate } = filters;
+      let endpoint = reportType === 'attendance' ? '/reporting/attendance' : '/reporting/payroll';
+      let url = `${endpoint}?startDate=${startDate}&endDate=${endDate}`;
       if (siteId) url += `&siteId=${siteId}`;
       if (skillType) url += `&skillType=${skillType}`;
+      if (labourSearch) url += `&search=${labourSearch}`;
 
       const response = await api.get(url);
       setReportData(response.data.data);
-      toast.success('Logistics aggregation complete');
+      toast.success(`${reportType.toUpperCase()} aggregation complete`);
     } catch (err) {
       toast.error('Report Generation Error: Pipeline failed to aggregate data');
     } finally {
@@ -74,22 +79,36 @@ const Reporting = () => {
   const handleExport = async (format) => {
     setIsExporting(true);
     try {
-      const { siteId, skillType, startDate, endDate } = filters;
-      let url = `/reporting/export/${format}?startDate=${startDate}&endDate=${endDate}`;
+      const { siteId, skillType, labourSearch, startDate, endDate } = filters;
+      let url = `/reporting/export/${format}?startDate=${startDate}&endDate=${endDate}&type=${reportType}`;
       if (siteId) url += `&siteId=${siteId}`;
       if (skillType) url += `&skillType=${skillType}`;
+      if (labourSearch) url += `&search=${labourSearch}`;
 
       const response = await api.get(url, { responseType: 'blob' });
       
       const fileUrl = window.URL.createObjectURL(new Blob([response.data]));
       const link = document.createElement('a');
       link.href = fileUrl;
-      link.setAttribute('download', `CONSTRUCTSYNC_REPORT_${format.toUpperCase()}_${new Date().toISOString().split('T')[0]}.${format === 'excel' ? 'xlsx' : 'pdf'}`);
+      link.setAttribute('download', `CONSTRUCTSYNC_${reportType.toUpperCase()}_${format.toUpperCase()}_${new Date().toISOString().split('T')[0]}.${format === 'excel' ? 'xlsx' : 'pdf'}`);
       document.body.appendChild(link);
       link.click();
       toast.success(`${format.toUpperCase()} Protocol: Export dispatched`);
     } catch (err) {
-      toast.error('Export Failure: Document generation server offline');
+      if (err.response?.data instanceof Blob) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const errorData = JSON.parse(reader.result);
+            toast.error(`Export Protocol: ${errorData.message || 'Pipeline fault'}`);
+          } catch (e) {
+            toast.error('Export Failure: Document generation server offline');
+          }
+        };
+        reader.readAsText(err.response.data);
+      } else {
+        toast.error('Export Failure: Document generation server offline');
+      }
     } finally {
       setIsExporting(false);
     }
@@ -103,10 +122,27 @@ const Reporting = () => {
           <h1 className="text-4xl font-black text-slate-900 uppercase tracking-tighter italic">
             Reporting Terminal
           </h1>
-          <p className="text-sm font-medium text-slate-500 uppercase tracking-widest flex items-center">
-            <TrendingUp className="h-4 w-4 mr-2 text-orange-600" />
-            Strategic Manpower & Payroll Analytics
-          </p>
+          <div className="flex items-center space-x-6">
+            <p className="text-sm font-medium text-slate-500 uppercase tracking-widest flex items-center">
+              <TrendingUp className="h-4 w-4 mr-2 text-orange-600" />
+              Strategic Analytics
+            </p>
+            <div className="h-4 w-px bg-slate-300"></div>
+            <div className="flex bg-slate-200 p-1 rounded-sm">
+              <button 
+                onClick={() => { setReportType('attendance'); setReportData([]); }}
+                className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${reportType === 'attendance' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:text-slate-900'}`}
+              >
+                Attendance
+              </button>
+              <button 
+                onClick={() => { setReportType('payroll'); setReportData([]); }}
+                className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-all ${reportType === 'payroll' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-500 hover:text-slate-900'}`}
+              >
+                Payroll
+              </button>
+            </div>
+          </div>
         </div>
         
         <div className="flex gap-4">
@@ -130,12 +166,26 @@ const Reporting = () => {
       </div>
 
       {/* Control Panel */}
-      <div className="bg-white border-4 border-slate-900 p-8 shadow-[12px_12px_0px_0px_rgba(15,23,42,1)] relative overflow-hidden">
+      <div className="bg-white border-4 border-slate-900 p-8 shadow-[12px_12px_0px_0px_rgba(15,23,42,1)] relative">
         <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
           <LayoutGrid size={120} />
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 relative z-10">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Personnel Search</label>
+            <div className="relative">
+               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
+               <input 
+                type="text" 
+                placeholder="ID OR NAME..."
+                className="input-industrial h-12 pl-12 text-[10px] uppercase font-black"
+                value={filters.labourSearch}
+                onChange={(e) => setFilters({...filters, labourSearch: e.target.value})}
+               />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Construction Site</label>
             <IndustrialSelect 
@@ -191,7 +241,7 @@ const Reporting = () => {
               {loading ? <Loader2 className="animate-spin" /> : (
                 <>
                   <RefreshCcw size={16} />
-                  <span>Execute Query</span>
+                  <span>Fetch Details</span>
                 </>
               )}
             </button>
@@ -268,7 +318,7 @@ const Reporting = () => {
               ) : (
                 <tr>
                   <td colSpan="6" className="py-32 text-center text-slate-300 uppercase text-[10px] font-black tracking-widest">
-                    Query completed: No records detected in this boundary
+                    Fetch completed: No records detected in this boundary
                   </td>
                 </tr>
               )}

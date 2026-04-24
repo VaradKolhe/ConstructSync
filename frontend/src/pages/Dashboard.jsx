@@ -217,48 +217,61 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* SUPERVISOR: Assigned Site Status */}
+        {/* SUPERVISOR: Assigned Sites Surveillance */}
         {user?.role === 'SUPERVISOR' && (
           <div className="bg-white border-2 border-slate-900 overflow-hidden shadow-[8px_8px_0px_0px_rgba(15,23,42,1)]">
             <div className="bg-slate-900 p-4 flex justify-between items-center">
               <h3 className="text-xs font-black text-white uppercase tracking-widest flex items-center">
                 <MapPin className="h-4 w-4 mr-2 text-orange-500" />
-                Active Site Surveillance
+                Active Sectors Surveillance
               </h3>
               <HardHat className="h-4 w-4 text-slate-600" />
             </div>
-            {stats?.assignedSite ? (
-              <div className="p-8 space-y-6">
-                <div>
-                  <h4 className="text-2xl font-black text-slate-900 uppercase tracking-tight leading-none mb-1">{stats.assignedSite.name}</h4>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">{stats.assignedSite.location}</p>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 bg-emerald-50 border-2 border-emerald-100">
-                    <p className="text-[9px] font-black text-emerald-600 uppercase mb-1">On-Site Now</p>
-                    <p className="text-3xl font-black text-emerald-900">{stats.assignedSite.onSiteCount}</p>
+            
+            <div className="divide-y-2 divide-slate-100">
+              {stats?.assignedSites?.length > 0 ? (
+                stats.assignedSites.map((site, idx) => (
+                  <div key={idx} className="p-6 space-y-4 hover:bg-slate-50 transition-colors">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h4 className="text-lg font-black text-slate-900 uppercase tracking-tight leading-none mb-1">{site.name}</h4>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em]">{site.location}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[9px] font-black px-2 py-1 bg-slate-900 text-white uppercase">Total Logged: {site.totalToday}</span>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="p-3 bg-emerald-50 border-2 border-emerald-100">
+                        <p className="text-[8px] font-black text-emerald-600 uppercase mb-1">On-Site (Active)</p>
+                        <p className="text-2xl font-black text-emerald-900">{site.onSiteCount}</p>
+                      </div>
+                      <div className="p-3 bg-orange-50 border-2 border-orange-100">
+                        <p className="text-[8px] font-black text-orange-600 uppercase mb-1">Pending Check-Out</p>
+                        <p className="text-2xl font-black text-orange-900">{site.pendingCheckOut}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="p-4 bg-orange-50 border-2 border-orange-100">
-                    <p className="text-[9px] font-black text-orange-600 uppercase mb-1">Pending Exit</p>
-                    <p className="text-3xl font-black text-orange-900">{stats.assignedSite.pendingCheckOut}</p>
-                  </div>
+                ))
+              ) : (
+                <div className="p-20 text-center">
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">No site assignments detected for your terminal</p>
+                  <button className="px-6 py-3 border-2 border-slate-900 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50">
+                    Request Sector Link
+                  </button>
                 </div>
+              )}
+            </div>
 
-                <div className="pt-4 border-t-2 border-slate-50 flex flex-col gap-3">
-                   <button 
-                    onClick={() => navigate('/attendance')}
-                    className="w-full py-4 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-orange-600 transition-colors flex items-center justify-center space-x-2">
-                     <CalendarCheck size={16} />
-                     <span>Open Attendance Terminal</span>
-                   </button>
-                </div>
-              </div>
-            ) : (
-              <div className="p-20 text-center">
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4">No site assignment detected for your terminal</p>
-                <button className="px-6 py-3 border-2 border-slate-900 text-[10px] font-black uppercase tracking-widest hover:bg-slate-50">
-                  Request Site Link
+            {stats?.assignedSites?.length > 0 && (
+              <div className="p-4 border-t-2 border-slate-900 bg-slate-50">
+                <button 
+                  onClick={() => navigate('/attendance')}
+                  className="w-full py-3 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest hover:bg-orange-600 transition-colors flex items-center justify-center space-x-2 shadow-[4px_4px_0px_0px_rgba(15,23,42,1)] active:shadow-none translate-x-[-2px] translate-y-[-2px] active:translate-x-0 active:translate-y-0"
+                >
+                  <CalendarCheck size={14} />
+                  <span>Open Attendance Terminal</span>
                 </button>
               </div>
             )}
@@ -349,13 +362,6 @@ const Dashboard = () => {
                 <div>
                   <h4 className="text-sm font-black uppercase tracking-widest mb-1">Register Attendance</h4>
                   <p className="text-[10px] font-bold opacity-80 uppercase">Mark Daily Work Logs</p>
-                </div>
-                <ArrowRight className="h-6 w-6 group-hover:translate-x-2 transition-transform" />
-              </div>
-              <div className="bg-slate-900 p-6 text-white btn-industrial-shadow flex items-center justify-between group cursor-pointer hover:bg-black transition-colors">
-                <div>
-                  <h4 className="text-sm font-black uppercase tracking-widest mb-1">Site Incident Report</h4>
-                  <p className="text-[10px] font-bold opacity-80 uppercase">Log Safety or Work Alerts</p>
                 </div>
                 <ArrowRight className="h-6 w-6 group-hover:translate-x-2 transition-transform" />
               </div>

@@ -4,6 +4,7 @@ const deploymentSchema = new mongoose.Schema(
   {
     labourId: {
       type: mongoose.Schema.Types.ObjectId,
+      ref: 'Labour',
       required: true,
     },
     siteId: {

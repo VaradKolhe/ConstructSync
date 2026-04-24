@@ -43,6 +43,10 @@ const labourSchema = new mongoose.Schema(
       unique: true,
       trim: true,
     },
+    monthlySalary: {
+      type: Number,
+      default: 0,
+    },
     // Optional Fields
     profilePhoto: {
       type: String,

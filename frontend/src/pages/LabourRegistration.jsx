@@ -33,6 +33,7 @@ const LabourRegistration = () => {
     address: '',
     skills: [],
     aadhaarNumber: '',
+    monthlySalary: '',
     bankDetails: {
       accountHolder: '',
       accountNumber: '',
@@ -228,6 +229,10 @@ const LabourRegistration = () => {
                      { value: 'OTHER', label: 'OTHER' }
                    ]}
                 />
+              </div>
+              <div className="space-y-2">
+                <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest">Agreed Monthly Salary (₹)</label>
+                <input required type="number" name="monthlySalary" className="input-industrial" placeholder="E.G. 25000" value={formData.monthlySalary} onChange={handleInputChange} />
               </div>
             </div>
           )}

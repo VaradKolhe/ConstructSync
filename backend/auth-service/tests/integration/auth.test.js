@@ -1,6 +1,9 @@
 const request = require('supertest');
 const mongoose = require('mongoose');
 const { MongoMemoryServer } = require('mongodb-memory-server');
+
+// Set global instance for middleware BEFORE requiring app
+global.mongooseInstance = mongoose;
 const app = require('../../src/app');
 const User = require('../../src/models/User');
 const seedAdmin = require('../../src/config/seedAdmin');
@@ -117,5 +120,36 @@ describe('Auth Service Integration Tests (Security Hardened)', () => {
     expect(res.statusCode).toBe(200);
     const cookieHeader = res.get('Set-Cookie');
     userToken = cookieHeader; // Store cookies for worker
+  });
+
+  // Step 5: Maintenance Mode
+  it('Step 5: Maintenance mode should block non-admin users', async () => {
+    // Seed Maintenance Mode ON
+    await mongoose.connection.collection('system_settings').updateOne(
+      { key: 'MAINTENANCE_MODE' },
+      { $set: { value: true, lastUpdated: new Date() } },
+      { upsert: true }
+    );
+
+    // Non-admin (worker) should be blocked
+    const res = await request(app)
+      .get('/api/auth/profile') // Assuming there's a profile route
+      .set('Cookie', userToken);
+    
+    expect(res.statusCode).toBe(503);
+    expect(res.body.message).toMatch(/maintenance/i);
+
+    // Admin should still have access
+    const adminRes = await request(app)
+      .get('/api/auth/profile')
+      .set('Cookie', cookies);
+    
+    expect(adminRes.statusCode).not.toBe(503);
+
+    // Turn off maintenance mode for other tests
+    await mongoose.connection.collection('system_settings').updateOne(
+      { key: 'MAINTENANCE_MODE' },
+      { $set: { value: false } }
+    );
   });
 });
