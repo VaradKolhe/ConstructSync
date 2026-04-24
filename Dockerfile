@@ -2,8 +2,12 @@
 FROM node:20-bookworm-slim AS backend-builder
 WORKDIR /app
 
-# Copy the common library
+# Copy the common library and root backend package file
 COPY backend/common ./backend/common
+COPY backend/package*.json ./backend/
+
+# Install root backend dependencies (like jsonwebtoken, mongoose)
+RUN cd backend && npm install --production
 
 # Copy package files and install dependencies for each service
 COPY backend/auth-service/package*.json ./backend/auth-service/
@@ -23,6 +27,11 @@ RUN cd backend/reporting-service && npm install --production
 
 COPY backend/gateway/package*.json ./backend/gateway/
 RUN cd backend/gateway && npm install --production
+
+# Link root node_modules into each service so they can find shared dependencies like jsonwebtoken
+RUN for dir in auth-service labour-service attendance-service deployment-service reporting-service gateway; do \
+      ln -s /app/backend/node_modules /app/backend/$dir/node_modules_common; \
+    done
 
 # Copy source code for all services
 COPY backend/auth-service ./backend/auth-service
