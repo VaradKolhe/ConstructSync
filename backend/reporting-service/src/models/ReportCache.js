@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = global.mongooseInstance || require('mongoose');
 
 const reportCacheSchema = new mongoose.Schema(
   {

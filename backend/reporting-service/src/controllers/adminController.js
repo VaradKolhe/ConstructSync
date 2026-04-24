@@ -21,8 +21,8 @@ exports.getDashboardKPIs = async (req, res, next) => {
       siteFilter = { 'metadata.siteId': { $in: siteIds } };
     }
 
-    const activeDeploymentsCount = await Deployment.countDocuments({ 
-      siteId: siteFilter['metadata.siteId'] || { $exists: true }, 
+    const activeSitesCount = await Site.countDocuments({ 
+      ...(role === 'SUPERVISOR' ? { supervisorId: userId } : {}),
       status: 'ACTIVE' 
     });
     
@@ -35,14 +35,14 @@ exports.getDashboardKPIs = async (req, res, next) => {
       status: { $in: ['PRESENT', 'HALF-DAY'] }
     });
     
-    const attendanceRate = activeDeploymentsCount > 0 
-      ? ((todayAttendanceCount / activeDeploymentsCount) * 100).toFixed(1) 
+    const attendanceRate = activeSitesCount > 0 
+      ? ((todayAttendanceCount / (await Deployment.countDocuments({ ...siteFilter, status: 'ACTIVE' }))) * 100).toFixed(1) 
       : 0;
 
     data.kpis = {
       totalLabour,
-      activeDeployments: activeDeploymentsCount,
-      attendanceRate: parseFloat(attendanceRate)
+      activeDeployments: activeSitesCount, // Renamed internally but keeping key for frontend
+      attendanceRate: parseFloat(attendanceRate) || 0
     };
 
     // 2. ADMIN Role Specific Data

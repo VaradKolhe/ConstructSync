@@ -31,6 +31,7 @@ const Reporting = () => {
   const [filters, setFilters] = useState({
     siteId: '',
     skillType: '',
+    labourSearch: '',
     startDate: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
     endDate: new Date().toISOString().split('T')[0]
   });
@@ -54,11 +55,12 @@ const Reporting = () => {
   const generateReport = async () => {
     setLoading(true);
     try {
-      const { siteId, skillType, startDate, endDate } = filters;
+      const { siteId, skillType, labourSearch, startDate, endDate } = filters;
       let endpoint = reportType === 'attendance' ? '/reporting/attendance' : '/reporting/payroll';
       let url = `${endpoint}?startDate=${startDate}&endDate=${endDate}`;
       if (siteId) url += `&siteId=${siteId}`;
       if (skillType) url += `&skillType=${skillType}`;
+      if (labourSearch) url += `&search=${labourSearch}`;
 
       const response = await api.get(url);
       setReportData(response.data.data);
@@ -77,11 +79,11 @@ const Reporting = () => {
   const handleExport = async (format) => {
     setIsExporting(true);
     try {
-      const { siteId, skillType, startDate, endDate } = filters;
-      // Use excel endpoint for both if it's payroll, or generic pdf
-      let url = `/reporting/export/${format}?startDate=${startDate}&endDate=${endDate}`;
+      const { siteId, skillType, labourSearch, startDate, endDate } = filters;
+      let url = `/reporting/export/${format}?startDate=${startDate}&endDate=${endDate}&type=${reportType}`;
       if (siteId) url += `&siteId=${siteId}`;
       if (skillType) url += `&skillType=${skillType}`;
+      if (labourSearch) url += `&search=${labourSearch}`;
 
       const response = await api.get(url, { responseType: 'blob' });
       
@@ -93,7 +95,20 @@ const Reporting = () => {
       link.click();
       toast.success(`${format.toUpperCase()} Protocol: Export dispatched`);
     } catch (err) {
-      toast.error('Export Failure: Document generation server offline');
+      if (err.response?.data instanceof Blob) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const errorData = JSON.parse(reader.result);
+            toast.error(`Export Protocol: ${errorData.message || 'Pipeline fault'}`);
+          } catch (e) {
+            toast.error('Export Failure: Document generation server offline');
+          }
+        };
+        reader.readAsText(err.response.data);
+      } else {
+        toast.error('Export Failure: Document generation server offline');
+      }
     } finally {
       setIsExporting(false);
     }
@@ -156,7 +171,21 @@ const Reporting = () => {
           <LayoutGrid size={120} />
         </div>
         
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 relative z-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 relative z-10">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Personnel Search</label>
+            <div className="relative">
+               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
+               <input 
+                type="text" 
+                placeholder="ID OR NAME..."
+                className="input-industrial h-12 pl-12 text-[10px] uppercase font-black"
+                value={filters.labourSearch}
+                onChange={(e) => setFilters({...filters, labourSearch: e.target.value})}
+               />
+            </div>
+          </div>
+
           <div className="space-y-2">
             <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Construction Site</label>
             <IndustrialSelect 
@@ -212,7 +241,7 @@ const Reporting = () => {
               {loading ? <Loader2 className="animate-spin" /> : (
                 <>
                   <RefreshCcw size={16} />
-                  <span>Execute Query</span>
+                  <span>Fetch Details</span>
                 </>
               )}
             </button>
@@ -289,7 +318,7 @@ const Reporting = () => {
               ) : (
                 <tr>
                   <td colSpan="6" className="py-32 text-center text-slate-300 uppercase text-[10px] font-black tracking-widest">
-                    Query completed: No records detected in this boundary
+                    Fetch completed: No records detected in this boundary
                   </td>
                 </tr>
               )}

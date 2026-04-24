@@ -40,11 +40,6 @@ const attendanceSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-    timeseries: {
-      timeField: 'date',
-      metaField: 'metadata',
-      granularity: 'hours',
-    },
   }
 );
 

@@ -137,4 +137,24 @@ describe('Labour Service Integration Tests (SRS Compliant)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.body.data.pagination.limit).toBe(50);
   });
+
+  it('Step 6: Search labour by ID or Aadhaar', async () => {
+    const labourIdSearch = await Labour.findById(labourObjectId);
+    
+    // Search by Labour ID
+    const resId = await request(app)
+      .get(`/api/labours?search=${labourIdSearch.labourId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    
+    expect(resId.statusCode).toBe(200);
+    expect(resId.body.data.labours.length).toBe(1);
+
+    // Search by Aadhaar
+    const resAadhaar = await request(app)
+      .get(`/api/labours?search=${labourIdSearch.aadhaarNumber}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    
+    expect(resAadhaar.statusCode).toBe(200);
+    expect(resAadhaar.body.data.labours.length).toBe(1);
+  });
 });

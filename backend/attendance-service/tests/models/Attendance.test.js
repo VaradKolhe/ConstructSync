@@ -27,8 +27,10 @@ afterAll(async () => {
 
 describe('Attendance Model Unit Tests', () => {
   const sampleAttendance = {
-    labourId: new mongoose.Types.ObjectId(),
-    siteId: new mongoose.Types.ObjectId(),
+    metadata: {
+      labourId: new mongoose.Types.ObjectId(),
+      siteId: new mongoose.Types.ObjectId(),
+    },
     supervisorId: new mongoose.Types.ObjectId(),
     date: new Date('2026-04-19T00:00:00.000Z'),
     checkInTime: new Date('2026-04-19T08:00:00.000Z')
@@ -36,7 +38,7 @@ describe('Attendance Model Unit Tests', () => {
 
   it('should create an attendance record successfully', async () => {
     const attendance = await Attendance.create(sampleAttendance);
-    expect(attendance.labourId).toEqual(sampleAttendance.labourId);
+    expect(attendance.metadata.labourId).toEqual(sampleAttendance.metadata.labourId);
     expect(attendance.status).toBe('PRESENT');
   });
 
@@ -49,8 +51,8 @@ describe('Attendance Model Unit Tests', () => {
       err = error;
     }
     expect(err).toBeDefined();
-    expect(err.errors.labourId).toBeDefined();
-    expect(err.errors.siteId).toBeDefined();
+    expect(err.errors['metadata.labourId']).toBeDefined();
+    expect(err.errors['metadata.siteId']).toBeDefined();
     expect(err.errors.date).toBeDefined();
   });
 

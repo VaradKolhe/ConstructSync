@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = global.mongooseInstance || require('mongoose');
 
 // Attendance Model
 const Attendance = mongoose.model('Attendance', new mongoose.Schema({

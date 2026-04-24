@@ -28,20 +28,21 @@ exports.checkIn = async (req, res, next) => {
     const attendanceDate = date ? new Date(date) : new Date();
     attendanceDate.setUTCHours(0, 0, 0, 0);
 
-    const activeSession = await Attendance.findOne({ 
-      'metadata.labourId': labourId, 
-      checkOutTime: null 
-    });
-    if (activeSession) {
-      return ApiResponse.error(res, 'Personnel already clocked in elsewhere.', 400);
-    }
-
     const exists = await Attendance.findOne({ 
       'metadata.labourId': labourId, 
       date: attendanceDate 
     });
     if (exists) {
       return ApiResponse.error(res, 'Attendance already marked for today', 400);
+    }
+
+    const activeSession = await Attendance.findOne({ 
+      'metadata.labourId': labourId, 
+      date: attendanceDate,
+      checkOutTime: null 
+    });
+    if (activeSession) {
+      return ApiResponse.error(res, 'Personnel already clocked in elsewhere today.', 400);
     }
 
     const attendance = await Attendance.create({
@@ -132,11 +133,10 @@ exports.bulkCheckOut = async (req, res, next) => {
       const diffMs = checkOutTime - record.checkInTime;
       const totalHours = parseFloat((diffMs / (1000 * 60 * 60)).toFixed(2));
       
-      const update = { checkOutTime, totalHours };
       return {
-        updateMany: {
-          filter: { metadata: record.metadata, date: record.date },
-          update: { $set: update }
+        updateOne: {
+          filter: { _id: record._id },
+          update: { $set: { checkOutTime, totalHours } }
         }
       };
     });
@@ -155,20 +155,23 @@ exports.bulkCheckOut = async (req, res, next) => {
 exports.checkOut = async (req, res, next) => {
   try {
     const attendance = await Attendance.findById(req.params.id);
-    if (!attendance || attendance.checkOutTime) return ApiResponse.error(res, 'Invalid record', 400);
+    if (!attendance) return ApiResponse.error(res, 'Record not found', 404);
+    if (attendance.checkOutTime) return ApiResponse.error(res, 'Already checked out', 400);
 
     const checkOutTime = new Date();
     const diffMs = checkOutTime - attendance.checkInTime;
     const totalHours = parseFloat((diffMs / (1000 * 60 * 60)).toFixed(2));
 
-    const updateData = { checkOutTime, totalHours };
+    const isAnomaly = totalHours > 12;
+    const anomalyReason = isAnomaly ? 'Exceeded 12-hour shift boundary' : null;
 
-    await Attendance.updateMany(
-      { metadata: attendance.metadata, date: attendance.date },
-      { $set: updateData }
+    const updated = await Attendance.findByIdAndUpdate(
+      req.params.id, 
+      { checkOutTime, totalHours, isAnomaly, anomalyReason },
+      { new: true }
     );
 
-    return ApiResponse.success(res, 'Check-out successful');
+    return ApiResponse.success(res, 'Check-out successful', updated);
   } catch (error) {
     next(error);
   }
@@ -179,37 +182,54 @@ exports.checkOut = async (req, res, next) => {
  */
 exports.editAttendance = async (req, res, next) => {
   try {
-    const { status, checkInTime, checkOutTime, date } = req.body;
+    const { status, checkInTime, checkOutTime } = req.body;
     const attendance = await Attendance.findById(req.params.id);
     if (!attendance) return ApiResponse.error(res, 'Record not found', 404);
 
-    const previousData = attendance.toObject();
-    
-    if (status) attendance.status = status;
-    if (checkInTime) attendance.checkInTime = new Date(checkInTime);
-    if (checkOutTime) attendance.checkOutTime = new Date(checkOutTime);
-    
-    if (attendance.checkInTime && attendance.checkOutTime) {
-      const diffMs = attendance.checkOutTime - attendance.checkInTime;
-      attendance.totalHours = parseFloat((diffMs / (1000 * 60 * 60)).toFixed(2));
+    // Supervisor Constraint: Only same day
+    if (req.user.role === 'SUPERVISOR') {
+       const today = new Date();
+       today.setUTCHours(0, 0, 0, 0);
+       const attDate = new Date(attendance.date);
+       attDate.setUTCHours(0, 0, 0, 0);
+       if (today.getTime() !== attDate.getTime()) {
+         return ApiResponse.error(res, 'Forbidden: Supervisors can only edit attendance for the current day.', 403);
+       }
     }
 
-    const updatedData = attendance.toObject();
-    delete updatedData._id;
+    const previousData = attendance.toObject();
+    const updateData = {};
+    
+    if (status) updateData.status = status;
+    if (checkInTime) updateData.checkInTime = new Date(checkInTime);
+    if (checkOutTime) updateData.checkOutTime = new Date(checkOutTime);
+    
+    // Recalculate hours if times changed
+    const finalIn = updateData.checkInTime || attendance.checkInTime;
+    const finalOut = updateData.checkOutTime || attendance.checkOutTime;
+    
+    if (finalIn && finalOut) {
+      const diffMs = new Date(finalOut) - new Date(finalIn);
+      updateData.totalHours = parseFloat((diffMs / (1000 * 60 * 60)).toFixed(2));
+    }
 
-    await Attendance.updateMany(
-      { metadata: attendance.metadata, date: attendance.date },
-      { $set: updatedData }
+    const updatedRecord = await Attendance.findByIdAndUpdate(
+      req.params.id,
+      { $set: updateData },
+      { new: true }
     );
 
     await AttendanceAudit.create({
       attendanceId: attendance._id,
       modifiedBy: req.user.id,
       action: 'EDIT',
-      changes: { previous: previousData, updated: updatedData },
+      changes: { 
+        previous: previousData, 
+        updated: updatedRecord.toObject() 
+      },
     });
 
-    return ApiResponse.success(res, 'Attendance updated', attendance);
+    return ApiResponse.success(res, 'Attendance updated', updatedRecord);
   } catch (error) {
     next(error);
   }

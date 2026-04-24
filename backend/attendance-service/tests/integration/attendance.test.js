@@ -45,6 +45,13 @@ beforeAll(async () => {
     isActive: true,
     refreshToken: 'mock-refresh-token'
   });
+
+  // Seed Maintenance Mode setting
+  await mongoose.connection.collection('system_settings').insertOne({
+    key: 'MAINTENANCE_MODE',
+    value: false,
+    lastUpdated: new Date()
+  });
 });
 
 afterAll(async () => {
@@ -68,7 +75,7 @@ describe('Attendance Service Integration Tests', () => {
 
     expect(res.statusCode).toBe(201);
     expect(res.body.success).toBe(true);
-    expect(res.body.data.labourId).toBe(labourId.toString());
+    expect(res.body.data.metadata.labourId).toBe(labourId.toString());
     attendanceId = res.body.data._id;
   });
 
@@ -83,7 +90,7 @@ describe('Attendance Service Integration Tests', () => {
       });
 
     expect(res.statusCode).toBe(400);
-    expect(res.body.message).toBe('Attendance already marked for this labourer today');
+    expect(res.body.message).toBe('Attendance already marked for today');
   });
 
   it('should mark check-out for the labourer', async () => {
@@ -158,7 +165,7 @@ describe('Attendance Service Integration Tests', () => {
       anomalyAttendanceId = res.body.data._id;
 
       // Manually update checkInTime to 13 hours ago for testing
-      await mongoose.model('Attendance').findByIdAndUpdate(anomalyAttendanceId, { checkInTime: pastTime });
+      await Attendance.findByIdAndUpdate(anomalyAttendanceId, { checkInTime: pastTime });
 
       const checkOutRes = await request(app)
         .put(`/api/attendances/check-out/${anomalyAttendanceId}`)
@@ -194,8 +201,10 @@ describe('Attendance Service Integration Tests', () => {
       pastDate.setUTCHours(0, 0, 0, 0);
 
       const pastRecord = await mongoose.model('Attendance').create({
-        labourId: new mongoose.Types.ObjectId(),
-        siteId,
+        metadata: {
+          labourId: new mongoose.Types.ObjectId(),
+          siteId
+        },
         supervisorId,
         date: pastDate,
         checkInTime: new Date(pastDate),
@@ -236,8 +245,10 @@ describe('Attendance Service Integration Tests', () => {
       pastDate.setUTCHours(0, 0, 0, 0);
 
       const pastRecord = await mongoose.model('Attendance').create({
-        labourId: new mongoose.Types.ObjectId(),
-        siteId,
+        metadata: {
+          labourId: new mongoose.Types.ObjectId(),
+          siteId
+        },
         supervisorId,
         date: pastDate,
         checkInTime: new Date(pastDate),
@@ -253,6 +264,36 @@ describe('Attendance Service Integration Tests', () => {
 
       expect(res.statusCode).toBe(200);
       expect(res.body.data.status).toBe('LEAVE');
+    });
+
+    it('should perform bulk check-in and check-out', async () => {
+      const labourIds = [new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId()];
+      
+      // Bulk Check-in
+      const bulkInRes = await request(app)
+        .post('/api/attendances/bulk-check-in')
+        .set('Authorization', `Bearer ${supervisorToken}`)
+        .send({
+          labourIds,
+          siteId,
+          date: todayStr
+        });
+      
+      expect(bulkInRes.statusCode).toBe(201);
+      expect(bulkInRes.body.data.length).toBe(2);
+
+      const attendanceIds = bulkInRes.body.data.map(r => r._id);
+
+      // Bulk Check-out
+      const bulkOutRes = await request(app)
+        .put('/api/attendances/bulk-check-out')
+        .set('Authorization', `Bearer ${supervisorToken}`)
+        .send({
+          attendanceIds
+        });
+      
+      expect(bulkOutRes.statusCode).toBe(200);
+      expect(bulkOutRes.body.message).toMatch(/successful/i);
     });
   });
 });
