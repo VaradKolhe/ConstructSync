@@ -27,7 +27,7 @@ jobs:
 
       - name: Run tests
         working-directory: backend/${{ matrix.service }}
-        run: npm test || echo "No tests found or tests failed"
+        run: npm test
 
   build-docker:
     needs: test-backend
