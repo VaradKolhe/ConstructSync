@@ -60,7 +60,7 @@ RUN apt-get update && apt-get install -y \
     nginx \
     supervisor \
     && curl -fsSL https://www.mongodb.org/static/pgp/server-7.0.asc | gpg --dearmor -o /usr/share/keyrings/mongodb-server-7.0.gpg \
-    && echo "deb [ [arch=amd64,arm64] signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg ] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/7.0 main" | tee /etc/apt/sources.list.d/mongodb-org-7.0.list \
+    && echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-7.0.gpg] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/7.0 main" | tee /etc/apt/sources.list.d/mongodb-org-7.0.list \
     && apt-get update && apt-get install -y mongodb-org \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -86,7 +86,9 @@ ENV LABOUR_SERVICE_URL=http://127.0.0.1:5002
 ENV ATTENDANCE_SERVICE_URL=http://127.0.0.1:5003
 ENV DEPLOYMENT_SERVICE_URL=http://127.0.0.1:5004
 ENV REPORTING_SERVICE_URL=http://127.0.0.1:5005
-ENV JWT_SECRET=production_secret_change_me
+
+# No default secrets; must be passed via -e at runtime:
+# JWT_SECRET, EMAIL_USER, EMAIL_PASS
 
 EXPOSE 80
 

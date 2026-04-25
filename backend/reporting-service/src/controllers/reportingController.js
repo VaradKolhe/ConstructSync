@@ -34,25 +34,49 @@ const logReport = async (userId, type, params) => {
 const getAggregatedData = async (filters) => {
   const { siteId, labourId, groupId, startDate, endDate, skillType, search } = filters;
 
-  const match = {};
+  const pipeline = [];
+
+  // Stage 0: Initial Match for Date (highly indexed)
+  const dateMatch = {};
   if (startDate || endDate) {
-    match.date = {};
-    if (startDate) match.date.$gte = new Date(startDate);
-    if (endDate) match.date.$lte = new Date(endDate);
+    dateMatch.date = {};
+    if (startDate) dateMatch.date.$gte = new Date(startDate);
+    if (endDate) dateMatch.date.$lte = new Date(endDate);
   }
-  if (siteId) match['metadata.siteId'] = new mongoose.Types.ObjectId(siteId);
-  if (labourId) match['metadata.labourId'] = new mongoose.Types.ObjectId(labourId);
+  pipeline.push({ $match: dateMatch });
+
+  // Stage 1: Normalize IDs to strings for robust comparison
+  pipeline.push({
+    $addFields: {
+      siteIdStr: { $toString: '$metadata.siteId' },
+      labourIdStr: { $toString: '$metadata.labourId' }
+    }
+  });
+
+  // Stage 2: Apply Filters
+  const filterMatch = {};
+  if (siteId && siteId !== 'undefined' && siteId !== '') {
+    filterMatch.siteIdStr = siteId.toString();
+  }
+  if (labourId && labourId !== 'undefined' && labourId !== '') {
+    filterMatch.labourIdStr = labourId.toString();
+  }
 
   // If group filtering is requested
-  if (groupId) {
+  if (groupId && groupId !== 'undefined' && groupId !== '') {
     const group = await LabourGroup.findById(groupId);
     if (group) {
-      match['metadata.labourId'] = { $in: group.members };
+      const memberIdStrings = group.members.map(m => m.toString());
+      filterMatch.labourIdStr = { $in: memberIdStrings };
     }
   }
 
-  const pipeline = [
-    { $match: match },
+  if (Object.keys(filterMatch).length > 0) {
+    pipeline.push({ $match: filterMatch });
+  }
+
+  // Stage 3: Lookup Labour Details
+  pipeline.push(
     {
       $lookup: {
         from: 'labours',
@@ -61,8 +85,8 @@ const getAggregatedData = async (filters) => {
         as: 'labourDetails',
       },
     },
-    { $unwind: '$labourDetails' },
-  ];
+    { $unwind: '$labourDetails' }
+  );
 
   // Search filter
   if (search) {
@@ -81,6 +105,7 @@ const getAggregatedData = async (filters) => {
     pipeline.push({ $match: { 'labourDetails.skills': skillType } });
   }
 
+  // Stage 4: Lookup Site Details and Group
   pipeline.push(
     {
       $lookup: {
@@ -93,7 +118,10 @@ const getAggregatedData = async (filters) => {
     { $unwind: '$siteDetails' },
     {
       $group: {
-        _id: '$metadata.labourId',
+        _id: {
+          labourId: '$metadata.labourId',
+          siteId: '$metadata.siteId'
+        },
         labourIdStr: { $first: '$labourDetails.labourId' },
         name: { $first: '$labourDetails.name' },
         skills: { $first: '$labourDetails.skills' },
@@ -317,28 +345,39 @@ exports.exportPdfReport = async (req, res, next) => {
     doc.font('Helvetica-Bold').text('UNIT COUNT:', 600, 135);
     doc.font('Helvetica').text(`${data.length} PERSONNEL`, 670, 135);
 
-    // --- TABLE HEADERS ---
-    const tableTop = 180;
-    doc.rect(40, tableTop, 760, 25).fill('#0f172a');
-    doc.fillColor('#ffffff').fontSize(8).font('Helvetica-Bold');
-    
-    doc.text('PERSONNEL ID', 50, tableTop + 8);
-    doc.text('FULL NAME & SPECIALIZATION', 150, tableTop + 8);
-    
-    if (type === 'payroll') {
-      doc.text('MONTHLY SALARY', 350, tableTop + 8, { width: 90, align: 'right' });
-      doc.text('TOTAL DAYS', 450, tableTop + 8, { width: 80, align: 'right' });
-      doc.text('TOTAL HOURS', 540, tableTop + 8, { width: 80, align: 'right' });
-      doc.text('NET EARNINGS (INR)', 640, tableTop + 8, { width: 150, align: 'right' });
-    } else {
-      doc.text('ATTENDANCE (P/H/L/A)', 400, tableTop + 8, { width: 150, align: 'center' });
-      doc.text('TOTAL HOURS', 560, tableTop + 8, { width: 100, align: 'right' });
-      doc.text('AVG DAILY', 680, tableTop + 8, { width: 100, align: 'right' });
-    }
+    // --- TABLE HEADERS HELPER ---
+    const drawTableHeader = (yPos) => {
+      doc.rect(40, yPos, 760, 25).fill('#0f172a');
+      doc.fillColor('#ffffff').fontSize(8).font('Helvetica-Bold');
+      
+      doc.text('PERSONNEL ID', 50, yPos + 8);
+      doc.text('FULL NAME & SPECIALIZATION', 150, yPos + 8);
+      
+      if (type === 'payroll') {
+        doc.text('MONTHLY SALARY', 350, yPos + 8, { width: 90, align: 'right' });
+        doc.text('TOTAL DAYS', 450, yPos + 8, { width: 80, align: 'right' });
+        doc.text('TOTAL HOURS', 540, yPos + 8, { width: 80, align: 'right' });
+        doc.text('NET EARNINGS (INR)', 640, yPos + 8, { width: 150, align: 'right' });
+      } else {
+        doc.text('ATTENDANCE (P/H/L/A)', 400, yPos + 8, { width: 150, align: 'center' });
+        doc.text('TOTAL HOURS', 560, yPos + 8, { width: 100, align: 'right' });
+        doc.text('AVG DAILY', 680, yPos + 8, { width: 100, align: 'right' });
+      }
+      return yPos + 25;
+    };
 
     // --- TABLE ROWS ---
-    let y = tableTop + 25;
+    let y = 180;
+    y = drawTableHeader(y);
+
     data.forEach((item, index) => {
+      // Page break check (Landscape A4 height is ~595pts, leave room for footer)
+      if (y > 500) {
+        doc.addPage();
+        y = 40; // New page top margin
+        y = drawTableHeader(y);
+      }
+
       // Alternating row background
       if (index % 2 === 0) {
         doc.rect(40, y, 760, 30).fill('#f1f5f9');
@@ -346,31 +385,25 @@ exports.exportPdfReport = async (req, res, next) => {
       
       const skillsStr = Array.isArray(item.skills) ? item.skills.join(', ') : (item.skills || 'N/A');
 
-      doc.fillColor('#0f172a').fontSize(8).font('Helvetica-Bold').text(item.labourId, 50, y + 10);
-      doc.font('Helvetica').text(item.name.toUpperCase(), 150, y + 6);
+      doc.fillColor('#0f172a').fontSize(8).font('Helvetica-Bold').text(item.labourId || 'N/A', 50, y + 10);
+      doc.font('Helvetica').text((item.name || 'UNKNOWN').toUpperCase(), 150, y + 6);
       doc.fillColor('#64748b').fontSize(7).text(skillsStr.toUpperCase(), 150, y + 18);
       
       doc.fillColor('#0f172a').fontSize(8).font('Helvetica');
       if (type === 'payroll') {
         const totalDays = (item.totalPresent || 0) + ((item.totalHalfDay || 0) * 0.5);
-        doc.text(`₹ ${item.monthlySalary.toLocaleString()}`, 350, y + 10, { width: 90, align: 'right' });
+        doc.text(`₹ ${(item.monthlySalary || 0).toLocaleString()}`, 350, y + 10, { width: 90, align: 'right' });
         doc.text(`${totalDays.toFixed(1)} DAYS`, 450, y + 10, { width: 80, align: 'right' });
-        doc.text(`${item.totalWorkingHours.toFixed(1)} HRS`, 540, y + 10, { width: 80, align: 'right' });
-        doc.fillColor('#15803d').font('Helvetica-Bold').text(`₹ ${Math.round(item.totalEarnings).toLocaleString()}`, 640, y + 10, { width: 150, align: 'right' });
+        doc.text(`${(item.totalWorkingHours || 0).toFixed(1)} HRS`, 540, y + 10, { width: 80, align: 'right' });
+        doc.fillColor('#15803d').font('Helvetica-Bold').text(`₹ ${Math.round(item.totalEarnings || 0).toLocaleString()}`, 640, y + 10, { width: 150, align: 'right' });
       } else {
-        const stats = `${item.totalPresent} / ${item.totalHalfDay} / ${item.totalLeave} / ${item.totalAbsent}`;
+        const stats = `${item.totalPresent || 0} / ${item.totalHalfDay || 0} / ${item.totalLeave || 0} / ${item.totalAbsent || 0}`;
         doc.text(stats, 400, y + 10, { width: 150, align: 'center' });
-        doc.font('Helvetica-Bold').text(`${item.totalWorkingHours.toFixed(1)}`, 560, y + 10, { width: 100, align: 'right' });
+        doc.font('Helvetica-Bold').text(`${(item.totalWorkingHours || 0).toFixed(1)}`, 560, y + 10, { width: 100, align: 'right' });
         doc.font('Helvetica').text(`${(item.averageDailyHours || 0).toFixed(1)}`, 680, y + 10, { width: 100, align: 'right' });
       }
       
-      // Page break check (Landscape A4 height is ~595pts)
-      if (y > 520 && index < data.length - 1) {
-        doc.addPage();
-        y = 50;
-      } else {
-        y += 30;
-      }
+      y += 30;
     });
 
     // --- FOOTER ---
@@ -404,6 +437,12 @@ exports.getReportLogs = async (req, res, next) => {
  */
 exports.getAttendanceReport = async (req, res, next) => {
   try {
+    // Clear cache if data was recently updated/seeded to ensure fresh results
+    const { siteId } = req.query;
+    if (siteId) {
+      await ReportCache.deleteMany({ 'parameters.siteId': siteId });
+    }
+
     const data = await getAggregatedData(req.query);
     return ApiResponse.success(res, 'Attendance report generated', data);
   } catch (error) {

@@ -246,6 +246,12 @@ const WorkforceDeployment = () => {
                              {labour.status}
                            </span>
                          </div>
+                         {labour.deployment && (
+                           <div className="flex items-center space-x-1 mt-1 text-orange-600">
+                             <MapPin size={10} strokeWidth={3} />
+                             <span className="text-[9px] font-black uppercase tracking-widest">{labour.deployment.siteName}</span>
+                           </div>
+                         )}
                        </div>
                     </div>
                     

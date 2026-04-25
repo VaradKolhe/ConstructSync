@@ -46,8 +46,11 @@ exports.checkIn = async (req, res, next) => {
     }
 
     const attendance = await Attendance.create({
-      metadata: { labourId, siteId },
-      supervisorId: req.user.id,
+      metadata: { 
+        labourId: new mongoose.Types.ObjectId(labourId), 
+        siteId: new mongoose.Types.ObjectId(siteId) 
+      },
+      supervisorId: new mongoose.Types.ObjectId(req.user.id),
       date: attendanceDate,
       checkInTime: new Date(),
       status: status || 'PRESENT',
@@ -95,8 +98,11 @@ exports.bulkCheckIn = async (req, res, next) => {
 
     const checkInTime = new Date();
     const records = newLabourIds.map(id => ({
-      metadata: { labourId: id, siteId },
-      supervisorId: req.user.id,
+      metadata: { 
+        labourId: new mongoose.Types.ObjectId(id), 
+        siteId: new mongoose.Types.ObjectId(siteId) 
+      },
+      supervisorId: new mongoose.Types.ObjectId(req.user.id),
       date: attendanceDate,
       checkInTime,
       status: status || 'PRESENT'

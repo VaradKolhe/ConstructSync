@@ -103,12 +103,45 @@ exports.getAllLabours = async (req, res, next) => {
     const labours = await Labour.find(query)
       .sort({ isActive: -1, createdAt: -1 }) // Show active ones first
       .skip(skip)
-      .limit(parseInt(limit));
+      .limit(parseInt(limit))
+      .lean();
     
+    // Enrich with deployment information
+    const labourIds = labours.map(l => l._id);
+    const activeDeployments = await mongoose.connection.db.collection('deployments').find({
+      labourId: { $in: labourIds },
+      status: 'ACTIVE'
+    }).toArray();
+
+    const siteIds = activeDeployments.map(d => d.siteId);
+    const sites = await mongoose.connection.db.collection('sites').find({
+      _id: { $in: siteIds }
+    }).toArray();
+
+    const siteMap = sites.reduce((acc, site) => {
+      acc[site._id.toString()] = site;
+      return acc;
+    }, {});
+
+    const deploymentMap = activeDeployments.reduce((acc, d) => {
+      acc[d.labourId.toString()] = {
+        ...d,
+        siteName: siteMap[d.siteId.toString()]?.name,
+        siteLocation: siteMap[d.siteId.toString()]?.location
+      };
+      return acc;
+    }, {});
+
+    const enrichedLabours = labours.map(l => ({
+      ...l,
+      deployment: deploymentMap[l._id.toString()] || null,
+      status: deploymentMap[l._id.toString()] ? 'ASSIGNED' : 'AVAILABLE'
+    }));
+
     const total = await Labour.countDocuments(query);
 
     return ApiResponse.success(res, 'Labours fetched successfully', {
-      labours,
+      labours: enrichedLabours,
       pagination: {
         total,
         page: parseInt(page),
@@ -126,8 +159,29 @@ exports.getAllLabours = async (req, res, next) => {
  */
 exports.getLabourById = async (req, res, next) => {
   try {
-    const labour = await Labour.findById(req.params.id);
+    const labour = await Labour.findById(req.params.id).lean();
     if (!labour) return ApiResponse.error(res, 'Labour not found', 404);
+
+    const deployment = await mongoose.connection.db.collection('deployments').findOne({
+      labourId: labour._id,
+      status: 'ACTIVE'
+    });
+
+    if (deployment) {
+      const site = await mongoose.connection.db.collection('sites').findOne({
+        _id: deployment.siteId
+      });
+      labour.deployment = {
+        ...deployment,
+        siteName: site?.name,
+        siteLocation: site?.location
+      };
+      labour.status = 'ASSIGNED';
+    } else {
+      labour.deployment = null;
+      labour.status = 'AVAILABLE';
+    }
+
     return ApiResponse.success(res, 'Labour details fetched', labour);
   } catch (error) {
     next(error);

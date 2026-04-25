@@ -68,7 +68,11 @@ const AttendanceTerminal = () => {
       
       const records = {};
       (attendanceRes.data.data || []).forEach(record => {
-        records[record.labourId] = record;
+        const rawLId = record.metadata?.labourId || record.labourId;
+        if (rawLId) {
+          const lId = rawLId.toString();
+          records[lId] = record;
+        }
       });
       setAttendanceRecords(records);
     } catch (err) {

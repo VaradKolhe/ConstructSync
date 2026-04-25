@@ -171,9 +171,16 @@ const Reporting = () => {
           <LayoutGrid size={120} />
         </div>
         
+        <div className="flex items-center space-x-2 mb-6 border-b-2 border-slate-100 pb-4">
+          <Filter className="h-5 w-5 text-orange-600" />
+          <h2 className="text-xs font-black uppercase tracking-[0.3em] text-slate-900">Advanced Filter Configuration</h2>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 relative z-10">
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Personnel Search</label>
+            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center">
+              <Users className="h-3 w-3 mr-1" /> Personnel Search
+            </label>
             <div className="relative">
                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
                <input 
@@ -184,30 +191,39 @@ const Reporting = () => {
                 onChange={(e) => setFilters({...filters, labourSearch: e.target.value})}
                />
             </div>
+            <p className="text-[7px] font-bold text-slate-400 uppercase">Search by CID or Full Name</p>
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Construction Site</label>
+            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center">
+              <MapPin className="h-3 w-3 mr-1" /> Project Sector
+            </label>
             <IndustrialSelect 
-              placeholder="ALL PROJECT SITES"
+              placeholder="ALL ACTIVE SITES"
               options={sites.map(s => ({ value: s._id, label: s.name.toUpperCase() }))}
               value={filters.siteId}
               onChange={(val) => setFilters({...filters, siteId: val})}
             />
+            <p className="text-[7px] font-bold text-slate-400 uppercase">Filter by Construction Site</p>
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Skill Specialization</label>
+            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center">
+              <Wrench className="h-3 w-3 mr-1" /> Specialization
+            </label>
             <IndustrialSelect 
               placeholder="ALL SKILL GROUPS"
               options={skills.map(s => ({ value: s.name, label: s.name.toUpperCase() }))}
               value={filters.skillType}
               onChange={(val) => setFilters({...filters, skillType: val})}
             />
+            <p className="text-[7px] font-bold text-slate-400 uppercase">Filter by Trade/Skill</p>
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Boundary Start</label>
+            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center">
+              <Calendar className="h-3 w-3 mr-1" /> Date From
+            </label>
             <div className="relative">
                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
                <input 
@@ -220,7 +236,9 @@ const Reporting = () => {
           </div>
 
           <div className="space-y-2">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Boundary End</label>
+            <label className="text-[9px] font-black text-slate-500 uppercase tracking-[0.2em] flex items-center">
+              <Calendar className="h-3 w-3 mr-1" /> Date To
+            </label>
             <div className="relative">
                <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 h-4 w-4" />
                <input 
@@ -236,12 +254,12 @@ const Reporting = () => {
             <button 
               onClick={generateReport}
               disabled={loading}
-              className="w-full h-12 bg-orange-600 text-white text-[10px] font-black uppercase tracking-[0.2em] hover:bg-slate-900 transition-colors flex items-center justify-center space-x-2"
+              className="w-full h-12 bg-slate-900 text-white text-[10px] font-black uppercase tracking-[0.2em] hover:bg-orange-600 transition-colors flex items-center justify-center space-x-2 btn-industrial-shadow"
             >
               {loading ? <Loader2 className="animate-spin" /> : (
                 <>
                   <RefreshCcw size={16} />
-                  <span>Fetch Details</span>
+                  <span>Execute Analysis</span>
                 </>
               )}
             </button>
